@@ -34,9 +34,9 @@ let tecnicos = [];
 let currentView = 'panel';
 let selectedClienteId = null;
 let selectedEquipoId = null;
-const fotosNuevas = [null, null, null]; // File objects para subir
-const stExt = new Array(13).fill(false); // checklist exterior
-const stInt = new Array(10).fill(false); // checklist interior
+const fotosNuevas = [null, null, null];
+const stExt = new Array(13).fill(false);
+const stInt = new Array(10).fill(false);
 
 const CIUDADES = ["Cúcuta", "Los Patios", "Villa del Rosario", "Bucaramanga",
     "Girón", "Floridablanca", "Piedecuesta", "Pamplona", "Chinácota", "El Zulia"];
@@ -94,7 +94,6 @@ function closeModal() {
     const ov = document.getElementById('overlayEl');
     ov.classList.add('hidden');
     ov.innerHTML = '';
-    // Resetear fotos
     fotosNuevas[0] = fotosNuevas[1] = fotosNuevas[2] = null;
 }
 
@@ -112,7 +111,6 @@ async function cargarDatos() {
         servicios = sSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         tecnicos = tSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        // Crear datos de ejemplo si la BD está vacía
         if (clientes.length === 0) {
             await crearDatosEjemplo();
             return;
@@ -128,7 +126,6 @@ async function cargarDatos() {
 async function crearDatosEjemplo() {
     toast('📦 Creando datos de ejemplo...');
     try {
-        // Cliente ejemplo
         const cliRef = await addDoc(collection(db, 'clientes'), {
             nombre: 'KATTY VELAZCO',
             telefono: '3043361259',
@@ -139,13 +136,11 @@ async function crearDatosEjemplo() {
             longitud: null
         });
 
-        // Técnico ejemplo
-        const tecRef = await addDoc(collection(db, 'tecnicos'), {
+        await addDoc(collection(db, 'tecnicos'), {
             nombre: 'ORLANDO ORTIZ',
             telefono: '3174022372'
         });
 
-        // Equipo ejemplo
         const eqRef = await addDoc(collection(db, 'equipos'), {
             clienteId: cliRef.id,
             marca: 'MABE',
@@ -156,7 +151,6 @@ async function crearDatosEjemplo() {
             capacidad: '12.000 BTU'
         });
 
-        // Servicio preventivo ejemplo
         const hoy = new Date().toISOString().split('T')[0];
         await addDoc(collection(db, 'servicios'), {
             equipoId: eqRef.id,
@@ -175,9 +169,8 @@ async function crearDatosEjemplo() {
     }
 }
 
-// ===== SUBIR IMAGEN A STORAGE (con compresión) =====
+// ===== SUBIR IMAGEN A STORAGE =====
 async function subirImagen(file) {
-    // Comprimir antes de subir: máx 1024px, calidad 0.78
     const blob = await comprimirImagen(file, 600, 0.60);
     const nombre = `fotos/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
     const storageRef = ref(storage, nombre);
@@ -212,7 +205,6 @@ function goTo(view, cid = null, eid = null) {
     selectedEquipoId = eid;
     closeModal();
     renderView();
-    // Actualizar bottom nav
     document.querySelectorAll('.bni').forEach(b => {
         b.classList.toggle('active', b.dataset.page === view ||
             (view === 'detalle' && b.dataset.page === 'clientes') ||
@@ -547,7 +539,7 @@ function limpiarFiltros() {
 }
 
 // ============================================
-// MANTENIMIENTOS / AGENDA
+// MANTENIMIENTOS / AGENDA - CORREGIDO
 // ============================================
 function renderMantenimientos() {
     const MESES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
@@ -558,39 +550,45 @@ function renderMantenimientos() {
     return `<div class="page">
         <div class="sec-head"><h2>Agenda ${año}</h2></div>
         <div class="tbl-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Mes</th><th>Fecha</th><th>Cliente</th><th>Equipo</th><th></th>
-                </tr>
-            </thead>
-            <tbody>
-            ${MESES.map((mes, idx) => {
-                const mp = String(idx + 1).padStart(2, '0');
-                const lista = mant.filter(m => m.proximoMantenimiento?.startsWith(`${año}-${mp}`));
-                if (!lista.length) return `<tr>
-                    <td style="color:var(--hint);font-size:0.72rem;background:var(--bg2);">${mes}</td>
-                    <td colspan="4" style="color:#cbd5e1;font-size:0.7rem;">—</td>
-                </tr>`;
-                return lista.map((m, i) => {
-                    const e = getEq(m.equipoId);
-                    const c = getCl(e?.clienteId);
-                    return `<tr>
-                        ${i === 0 ? `<td rowspan="${lista.length}" style="font-weight:700;font-size:0.75rem;background:var(--bg2);">${mes}</td>` : ''}
-                        <td>${fmtFecha(m.proximoMantenimiento)}</td>
-                        <td style="font-size:0.75rem;">${c?.nombre || 'N/A'}</td>
-                        <td style="font-size:0.72rem;">${e ? `${e.marca} ${e.modelo}` : 'N/A'}</td>
-                        <td>
-                            <button class="rec-btn"
-                                onclick="modalRecordar('${c?.telefono || ''}','${e?.marca || ''} ${e?.modelo || ''}','${e?.ubicacion || ''}','${m.proximoMantenimiento}','${c?.nombre || ''}')">
-                                📱
-                            </button>
-                        </td>
-                    </tr>`;
-                }).join('');
-            }).join('')}
-            </tbody>
-        </table>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Mes</th>
+                        <th>Fecha</th>
+                        <th>Cliente</th>
+                        <th>Equipo</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${MESES.map((mes, idx) => {
+                        const mp = String(idx + 1).padStart(2, '0');
+                        const lista = mant.filter(m => m.proximoMantenimiento?.startsWith(`${año}-${mp}`));
+                        if (!lista.length) {
+                            return `<tr>
+                                <td style="color:var(--hint);font-size:0.72rem;background:var(--bg2);">${mes}</td>
+                                <td colspan="4" style="color:#cbd5e1;font-size:0.7rem;">—</td>
+                            </tr>`;
+                        }
+                        return lista.map((m, i) => {
+                            const e = getEq(m.equipoId);
+                            const c = getCl(e?.clienteId);
+                            return `<tr>
+                                ${i === 0 ? `<td rowspan="${lista.length}" style="font-weight:700;font-size:0.75rem;background:var(--bg2);">${mes}</td>` : ''}
+                                <td>${fmtFecha(m.proximoMantenimiento)}</td>
+                                <td style="font-size:0.75rem;">${c?.nombre || 'N/A'}</td>
+                                <td style="font-size:0.72rem;">${e ? `${e.marca} ${e.modelo}` : 'N/A'}</td>
+                                <td>
+                                    <button class="rec-btn"
+                                        onclick="modalRecordar('${c?.telefono || ''}','${e?.marca || ''} ${e?.modelo || ''}','${e?.ubicacion || ''}','${m.proximoMantenimiento}','${c?.nombre || ''}')">
+                                        📱
+                                    </button>
+                                </td>
+                            </tr>`;
+                        }).join('');
+                    }).join('')}
+                </tbody>
+            </table>
         </div>
     </div>`;
 }
@@ -732,7 +730,6 @@ function modalNuevoServicio(eid) {
         </div>
     </div>`);
 
-    // Inicializar
     document.getElementById('proxFecha').value = calcProxFecha(hoy);
     onTipoChange();
 }
@@ -809,7 +806,6 @@ async function guardarServicio(eid) {
             ? document.getElementById('proxFecha').value
             : null;
 
-        // Subir fotos
         const urlsFotos = [];
         toast('📤 Subiendo fotos...');
         for (const file of fotosNuevas.filter(Boolean)) {
@@ -829,7 +825,6 @@ async function guardarServicio(eid) {
 
         await cargarDatos();
         toast('✅ Servicio guardado');
-        // Volver al historial
         const e = getEq(eid);
         if (e) goTo('historial', e.clienteId, eid);
 
@@ -935,8 +930,6 @@ function exportarPDFInforme(eid) {
     const diagInforme = document.getElementById('iDiag')?.value || '';
     const e = getEq(eid);
     const c = getCl(e?.clienteId);
-    const extSelec = CK_EXT.filter((_, i) => stExt[i]);
-    const intSelec = CK_INT.filter((_, i) => stInt[i]);
     const fecha = document.getElementById('iFecha')?.value || '';
     const valor = document.getElementById('iValor')?.value || '';
     const tec = document.getElementById('iTec')?.value || '';
@@ -1015,7 +1008,6 @@ function exportarPDFInforme(eid) {
         win.onload = () => setTimeout(() => win.print(), 300);
     }
 
-    // Volver al servicio con el diagnóstico
     closeModal();
     modalNuevoServicio(eid);
     setTimeout(() => {
@@ -1029,7 +1021,6 @@ function exportarPDFInforme(eid) {
 // INFORME PDF HISTORIAL
 // ============================================
 async function generarInformePDF(eid) {
-    // Genera PDF directo sin modal
     imprimirInformePDF(eid, '', tecnicos[0]?.nombre || '');
 }
 
@@ -1126,7 +1117,6 @@ function imprimirInformePDF(eid, firmaCli = '', firmaTec = '') {
     if (win) {
         win.document.write(html);
         win.document.close();
-        // Esperar imágenes antes de imprimir
         win.onload = () => {
             const imgs = win.document.images;
             if (!imgs.length) { setTimeout(() => win.print(), 300); return; }
@@ -1418,7 +1408,7 @@ async function eliminarTecnico(tid) {
 }
 
 // ============================================
-// RUTA PÚBLICA QR (historial público)
+// RUTA PÚBLICA QR
 // ============================================
 function manejarRutaQR() {
     const hash = window.location.hash;
@@ -1429,8 +1419,10 @@ function manejarRutaQR() {
     const c = getCl(e.clienteId);
     const ss = getServiciosEquipo(eid).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
     const main = document.getElementById('mainContent');
-    document.querySelector('.topbar').style.display = 'none';
-    document.querySelector('.botnav').style.display = 'none';
+    const topbar = document.querySelector('.topbar');
+    const botnav = document.querySelector('.botnav');
+    if (topbar) topbar.style.display = 'none';
+    if (botnav) botnav.style.display = 'none';
     main.style.background = 'white';
     main.innerHTML = `<div style="max-width:600px;margin:0 auto;padding:1.5rem;">
         <div style="text-align:center;margin-bottom:1.5rem;">
