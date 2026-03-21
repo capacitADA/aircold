@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>AIRCOLD - Gestión HVAC</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app" id="appRoot">
+        <!-- TOPBAR -->
+        <div class="topbar">
+            <div class="topbar-logo">
+                <img src="AIRCOLD_LOGO.png" style="height:36px;border-radius:4px;" alt="AIRCOLD">
+                <div>
+                    <div class="brand">AIRCOLD</div>
+                    <div class="brand-sub">Cúcuta</div>
+                </div>
+            </div>
+            <div class="topbar-right">
+                <span class="topbar-user">Administrador</span>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="main" id="mainContent">
+            <div class="loading-screen">
+                <div class="loading-spinner"></div>
+                <p>Cargando datos...</p>
+            </div>
+        </div>
+
+        <!-- BOTTOM NAV -->
+        <nav class="botnav">
+            <button class="bni active" data-page="panel">
+                <span class="bni-ico">📊</span>
+                <span class="bni-lbl">Panel</span>
+            </button>
+            <button class="bni" data-page="clientes">
+                <span class="bni-ico">👥</span>
+                <span class="bni-lbl">Clientes</span>
+            </button>
+            <button class="bni" data-page="equipos">
+                <span class="bni-ico">🔧</span>
+                <span class="bni-lbl">Equipos</span>
+            </button>
+            <button class="bni" data-page="servicios">
+                <span class="bni-ico">📋</span>
+                <span class="bni-lbl">Servicios</span>
+            </button>
+            <button class="bni" data-page="mantenimientos">
+                <span class="bni-ico">📅</span>
+                <span class="bni-lbl">Agenda</span>
+            </button>
+            <button class="bni" data-page="tecnicos">
+                <span class="bni-ico">👨‍🔧</span>
+                <span class="bni-lbl">Técnicos</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- OVERLAY para modales -->
+    <div class="overlay hidden" id="overlayEl"></div>
+
+    <!-- TOAST -->
+    <div class="toast" id="toastEl"></div>
+
+    <script src="app.js" type="module"></script>
+</body>
+</html>
