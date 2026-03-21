@@ -178,7 +178,7 @@ async function crearDatosEjemplo() {
 // ===== SUBIR IMAGEN A STORAGE (con compresión) =====
 async function subirImagen(file) {
     // Comprimir antes de subir: máx 1024px, calidad 0.78
-    const blob = await comprimirImagen(file, 1024, 0.78);
+    const blob = await comprimirImagen(file, 600, 0.60);
     const nombre = `fotos/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
     const storageRef = ref(storage, nombre);
     await uploadBytes(storageRef, blob);
@@ -247,10 +247,10 @@ function renderPanel() {
     const repM = rep.filter(s => s.fecha?.startsWith(mes));
     const instM = inst.filter(s => s.fecha?.startsWith(mes));
 
-    const proximos = servicios
-        .filter(s => s.proximoMantenimiento)
-        .sort((a, b) => new Date(a.proximoMantenimiento) - new Date(b.proximoMantenimiento))
-        .slice(0, 4);
+    const nuevosDelMes = clientes.filter(c => {
+        if (!c.fechaCreacion) return false;
+        return c.fechaCreacion.startsWith(mes);
+    }).length;
 
     return `<div class="page">
         <div class="panel-banner">
@@ -265,11 +265,8 @@ function renderPanel() {
                     <div class="panel-box-lbl">TOTALES</div>
                 </div>
                 <div class="panel-box" onclick="goTo('clientes')">
-                    <div class="panel-box-num">${clientes.filter(c => {
-                        const ahora = new Date();
-                        return true; // Podrías filtrar por fecha de creación
-                    }).length}</div>
-                    <div class="panel-box-lbl">EQUIPOS</div>
+                    <div class="panel-box-num">${nuevosDelMes}</div>
+                    <div class="panel-box-lbl">NUEVOS MES</div>
                 </div>
             </div>
             <div class="panel-col gray">
@@ -309,20 +306,7 @@ function renderPanel() {
                 </div>
             </div>
         </div>
-        ${proximos.length ? `
-        <div class="prox-mant-card">
-            <div class="prox-mant-title">📅 Próximos mantenimientos</div>
-            ${proximos.map(s => {
-                const e = getEq(s.equipoId);
-                const c = getCl(e?.clienteId);
-                return `<div class="prox-row">
-                    <span style="flex:1;font-size:0.78rem;">${c?.nombre || ''}<br>
-                    <span style="color:var(--hint);font-size:0.72rem;">${e?.marca || ''} ${e?.modelo || ''}</span></span>
-                    <span class="badge b-amber">${fmtFecha(s.proximoMantenimiento)}</span>
-                </div>`;
-            }).join('')}
-        </div>` : ''}
-    </div>`;
+    </div>\`;
 }
 
 // ============================================
@@ -426,9 +410,8 @@ function renderHistorial() {
                 <div style="font-size:0.72rem;color:var(--hint);">${e.ubicacion} · ${c?.nombre}</div>
             </div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.65rem;">
+        <div style="margin-bottom:0.65rem;">
             <span style="font-size:0.88rem;font-weight:700;">Historial (${ss.length})</span>
-            <button class="btn btn-blue btn-sm" onclick="modalNuevoServicio('${e.id}')">➕ Nuevo</button>
         </div>
         ${ss.length === 0 ? '<p style="font-size:0.85rem;color:var(--hint);text-align:center;padding:1rem;">Sin servicios registrados.</p>' : ''}
         ${ss.map(s => `
@@ -1008,11 +991,11 @@ function exportarPDFInforme(eid) {
   <div class="ck-grid">
     <div class="ck-col">
       <div class="ck-head">Unidad exterior (Condensadora)</div>
-      ${CK_EXT.map((t, i) => `<div class="ck-row"><div class="cb ${stExt[i] ? 'on' : ''}">${stExt[i] ? '✓' : ''}</div><span>${t}</span></div>`).join('')}
+      ${CK_EXT.map((t, i) => `<div class="ck-row"><div class="cb ${stExt[i] === true ? 'on' : ''}">${stExt[i] === true ? '&#10003;' : '&nbsp;'}</div><span>${t}</span></div>`).join('')}
     </div>
     <div class="ck-col">
       <div class="ck-head">Unidad interior (Manejadora)</div>
-      ${CK_INT.map((t, i) => `<div class="ck-row"><div class="cb ${stInt[i] ? 'on' : ''}">${stInt[i] ? '✓' : ''}</div><span>${t}</span></div>`).join('')}
+      ${CK_INT.map((t, i) => `<div class="ck-row"><div class="cb ${stInt[i] === true ? 'on' : ''}">${stInt[i] === true ? '&#10003;' : '&nbsp;'}</div><span>${t}</span></div>`).join('')}
     </div>
   </div>
   <div class="diag"><div class="lbl">Diagnóstico técnico:</div>${diagInforme || ''}</div>
@@ -1044,42 +1027,16 @@ function exportarPDFInforme(eid) {
 // INFORME PDF HISTORIAL
 // ============================================
 async function generarInformePDF(eid) {
-    const e = getEq(eid);
-    const c = getCl(e?.clienteId);
-    const ss = getServiciosEquipo(eid).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-
-    showModal(`<div class="modal" onclick="event.stopPropagation()">
-        <div class="modal-h">
-            <h3>📄 Informe PDF</h3>
-            <button class="xbtn" onclick="closeModal()">✕</button>
-        </div>
-        <div class="modal-b">
-            <div class="info-box" style="margin-bottom:0.65rem;">
-                <div style="font-weight:700;">${c?.nombre}</div>
-                <div style="font-size:0.82rem;color:var(--muted);">${e?.marca} ${e?.modelo} · ${e?.ubicacion}</div>
-                <div style="font-size:0.75rem;color:var(--hint);">${ss.length} servicio(s) incluido(s)</div>
-            </div>
-            <div style="background:var(--blue-light);border:0.5px solid #93c5fd;border-radius:10px;padding:0.65rem;margin-bottom:0.65rem;font-size:0.8rem;color:#1e3a8a;">
-                Las fotos se cargan desde Firebase Storage. El PDF espera a que todas las imágenes carguen.
-            </div>
-            <div class="fr">
-                <div><label class="fl first">Firma técnico</label><input class="fi" id="firmaTec" value="${tecnicos[0]?.nombre || ''}"></div>
-                <div><label class="fl first">Firma cliente</label><input class="fi" id="firmaCli" placeholder="Nombre"></div>
-            </div>
-            <div class="modal-foot">
-                <button class="btn btn-gray" onclick="closeModal()">Cancelar</button>
-                <button class="btn btn-blue" onclick="imprimirInformePDF('${eid}')">🖨️ Generar PDF</button>
-            </div>
-        </div>
-    </div>`);
+    // Genera PDF directo sin modal
+    imprimirInformePDF(eid, '', tecnicos[0]?.nombre || '');
 }
 
-function imprimirInformePDF(eid) {
+function imprimirInformePDF(eid, firmaCli = '', firmaTec = '') {
     const e = getEq(eid);
     const c = getCl(e?.clienteId);
     const ss = getServiciosEquipo(eid).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-    const firmaTec = document.getElementById('firmaTec')?.value || '';
-    const firmaCli = document.getElementById('firmaCli')?.value || '';
+    firmaTec = firmaTec || tecnicos[0]?.nombre || '';
+    firmaCli = firmaCli || '';
 
     const html = `<!DOCTYPE html>
 <html lang="es">
@@ -1159,7 +1116,7 @@ function imprimirInformePDF(eid) {
       <div style="font-size:10px;color:#64748b;">CLIENTE</div>
     </div>
   </div>
-  <div class="footer">Documento generado por AIRCOLD · Sistema de Gestión HVAC · ${new Date().toLocaleDateString('es-ES')}</div>
+  <div class="footer">Documento generado por capacitADA · Sistema de Gestión HVAC · ${new Date().toLocaleDateString('es-ES')}</div>
 </body>
 </html>`;
 
@@ -1274,7 +1231,8 @@ async function guardarCliente() {
             nombre: n, telefono: t, ciudad: ci, direccion: d,
             email: document.getElementById('cEmail')?.value || '',
             latitud: document.getElementById('cLat')?.value || null,
-            longitud: document.getElementById('cLng')?.value || null
+            longitud: document.getElementById('cLng')?.value || null,
+            fechaCreacion: new Date().toISOString().split('T')[0]
         });
         await cargarDatos();
         toast('✅ Cliente guardado');
@@ -1498,7 +1456,7 @@ function manejarRutaQR() {
             </div>
         </div>`).join('')}
         <div style="text-align:center;font-size:0.7rem;color:#94a3b8;margin-top:1rem;padding-top:0.75rem;border-top:0.5px solid #e2e8f0;">
-            Generado por AIRCOLD · Sistema de Gestión HVAC
+            Generado por capacitADA · Sistema de Gestión HVAC
         </div>
     </div>`;
     return true;
