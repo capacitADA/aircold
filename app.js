@@ -169,33 +169,51 @@ async function crearDatosEjemplo() {
     }
 }
 
-// ===== SUBIR IMAGEN A STORAGE =====
+// ===== SUBIR IMAGEN A STORAGE (COMPRESIÓN AUTOMÁTICA 1200px) =====
+function comprimirImagen(file) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            let { width, height } = img;
+            const maxPx = 1200;
+            
+            // Redimensionar manteniendo proporción
+            if (width > maxPx || height > maxPx) {
+                if (width > height) {
+                    height = Math.round(height * maxPx / width);
+                    width = maxPx;
+                } else {
+                    width = Math.round(width * maxPx / height);
+                    height = maxPx;
+                }
+            }
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+            
+            canvas.toBlob(b => resolve(b), 'image/jpeg', 0.7);
+        };
+        
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Error al cargar imagen'));
+        };
+        
+        img.src = url;
+    });
+}
+
 async function subirImagen(file) {
-    const blob = await comprimirImagen(file, 600, 0.60);
+    const blob = await comprimirImagen(file);
     const nombre = `fotos/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
     const storageRef = ref(storage, nombre);
     await uploadBytes(storageRef, blob);
     return await getDownloadURL(storageRef);
-}
-
-function comprimirImagen(file, maxPx, calidad) {
-    return new Promise(resolve => {
-        const img = new Image();
-        const url = URL.createObjectURL(file);
-        img.onload = () => {
-            URL.revokeObjectURL(url);
-            let { width, height } = img;
-            if (width > maxPx || height > maxPx) {
-                if (width > height) { height = Math.round(height * maxPx / width); width = maxPx; }
-                else { width = Math.round(width * maxPx / height); height = maxPx; }
-            }
-            const canvas = document.createElement('canvas');
-            canvas.width = width; canvas.height = height;
-            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-            canvas.toBlob(b => resolve(b), 'image/jpeg', calidad);
-        };
-        img.src = url;
-    });
 }
 
 // ===== NAVEGACIÓN =====
@@ -539,7 +557,7 @@ function limpiarFiltros() {
 }
 
 // ============================================
-// MANTENIMIENTOS / AGENDA - CORREGIDO
+// MANTENIMIENTOS / AGENDA
 // ============================================
 function renderMantenimientos() {
     const MESES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
@@ -772,7 +790,11 @@ function previewFoto(input, idx) {
                 <img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;">
                 <button class="fslot-del" onclick="borrarFoto(event,${idx})">✕</button>
                 <input type="file" id="finput${idx}" accept="image/*" capture="environment"
-                    style="display:none" onchange="previewFoto(this,${idx})">`;
+                    style="display:none" onchange="previewFoto(this,${idx})">
+                <div style="position:absolute;bottom:2px;right:4px;background:rgba(0,0,0,0.6);color:white;font-size:9px;padding:1px 4px;border-radius:4px;">
+                    📸
+                </div>
+            `;
         }
     };
     reader.readAsDataURL(input.files[0]);
@@ -792,12 +814,13 @@ function borrarFoto(e, idx) {
     }
 }
 
+// ===== GUARDAR SERVICIO CON SUBIDA EN PARALELO =====
 async function guardarServicio(eid) {
     const desc = document.getElementById('sDesc')?.value?.trim();
     if (!desc) { toast('⚠️ Ingresa el diagnóstico'); return; }
 
     const btn = document.getElementById('btnGuardarServ');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando...'; }
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Procesando...'; }
 
     try {
         const tipo = document.getElementById('sTipo').value;
@@ -806,13 +829,22 @@ async function guardarServicio(eid) {
             ? document.getElementById('proxFecha').value
             : null;
 
-        const urlsFotos = [];
-        toast('📤 Subiendo fotos...');
-        for (const file of fotosNuevas.filter(Boolean)) {
-            const url = await subirImagen(file);
-            urlsFotos.push(url);
+        const fotosValidas = fotosNuevas.filter(Boolean);
+        let urlsFotos = [];
+        
+        if (fotosValidas.length > 0) {
+            toast(`📸 Subiendo ${fotosValidas.length} foto(s) en paralelo...`);
+            if (btn) btn.textContent = `📤 Subiendo ${fotosValidas.length} foto(s)...`;
+            
+            // Subir todas las fotos en paralelo
+            const uploadPromises = fotosValidas.map(file => subirImagen(file));
+            urlsFotos = await Promise.all(uploadPromises);
+            
+            toast('✅ Fotos subidas correctamente');
         }
 
+        if (btn) btn.textContent = '💾 Guardando servicio...';
+        
         await addDoc(collection(db, 'servicios'), {
             equipoId: eid,
             tipo,
@@ -824,14 +856,18 @@ async function guardarServicio(eid) {
         });
 
         await cargarDatos();
-        toast('✅ Servicio guardado');
+        toast('✅ Servicio guardado correctamente');
+        
         const e = getEq(eid);
         if (e) goTo('historial', e.clienteId, eid);
 
     } catch (err) {
-        console.error(err);
-        toast('⚠️ Error al guardar. Intenta de nuevo.');
-        if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar'; }
+        console.error('Error:', err);
+        toast('⚠️ Error al guardar: ' + (err.message || 'Intenta de nuevo'));
+        if (btn) { 
+            btn.disabled = false; 
+            btn.textContent = '💾 Guardar'; 
+        }
     }
 }
 
@@ -978,10 +1014,16 @@ function exportarPDFInforme(eid) {
     <div class="contact">Servicios de Refrigeración<br>Cll. 23N # 2-99 Prados Norte<br>3174022372 – 3232458563</div>
   </div>
   <table class="fields">
-    <tr><td><span class="lbl">Entidad</span><br>${c?.nombre || ''}</td><td><span class="lbl">Ubicación del equipo</span><br>${e?.ubicacion || ''}</td></tr>
-    <tr><td><span class="lbl">Marca de equipo</span><br>${e?.marca || ''}</td><td><span class="lbl">Modelo y serial</span><br>${e?.modelo || ''} · ${e?.serie || ''}</td></tr>
-    <tr><td><span class="lbl">Fecha</span><br>${fecha}</td><td><span class="lbl">Valor</span><br>${valor || 'ΦΦΦ'}</td></tr>
-  </table>
+    <tr><td><span class="lbl">Entidad</span><br>${c?.nombre || ''}</td>
+    <td><span class="lbl">Ubicación del equipo</span><br>${e?.ubicacion || ''}</td>
+    </tr>
+    <tr><td><span class="lbl">Marca de equipo</span><br>${e?.marca || ''}</td>
+    <td><span class="lbl">Modelo y serial</span><br>${e?.modelo || ''} · ${e?.serie || ''}</td>
+    </tr>
+    <tr><td><span class="lbl">Fecha</span><br>${fecha}</td>
+    <td><span class="lbl">Valor</span><br>${valor || 'ΦΦΦ'}</td>
+    </tr>
+   </table>
   <div class="section-title">Control de Mantenimiento</div>
   <div class="ck-grid">
     <div class="ck-col">
