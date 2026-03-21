@@ -306,7 +306,7 @@ function renderPanel() {
                 </div>
             </div>
         </div>
-    </div>\`;
+    </div>`;
 }
 
 // ============================================
@@ -559,9 +559,11 @@ function renderMantenimientos() {
         <div class="sec-head"><h2>Agenda ${año}</h2></div>
         <div class="tbl-wrap">
         <table>
-            <thead><tr>
-                <th>Mes</th><th>Fecha</th><th>Cliente</th><th>Equipo</th><th></th>
-            </tr></thead>
+            <thead>
+                <tr>
+                    <th>Mes</th><th>Fecha</th><th>Cliente</th><th>Equipo</th><th></th>
+                </tr>
+            </thead>
             <tbody>
             ${MESES.map((mes, idx) => {
                 const mp = String(idx + 1).padStart(2, '0');
@@ -991,11 +993,11 @@ function exportarPDFInforme(eid) {
   <div class="ck-grid">
     <div class="ck-col">
       <div class="ck-head">Unidad exterior (Condensadora)</div>
-      ${CK_EXT.map((t, i) => `<div class="ck-row"><div class="cb ${stExt[i] === true ? 'on' : ''}">${stExt[i] === true ? '&#10003;' : '&nbsp;'}</div><span>${t}</span></div>`).join('')}
+      ${CK_EXT.map((t, i) => `<div class="ck-row"><div class="cb ${stExt[i] === true ? 'on' : ''}">${stExt[i] === true ? '✓' : '&nbsp;'}</div><span>${t}</span></div>`).join('')}
     </div>
     <div class="ck-col">
       <div class="ck-head">Unidad interior (Manejadora)</div>
-      ${CK_INT.map((t, i) => `<div class="ck-row"><div class="cb ${stInt[i] === true ? 'on' : ''}">${stInt[i] === true ? '&#10003;' : '&nbsp;'}</div><span>${t}</span></div>`).join('')}
+      ${CK_INT.map((t, i) => `<div class="ck-row"><div class="cb ${stInt[i] === true ? 'on' : ''}">${stInt[i] === true ? '✓' : '&nbsp;'}</div><span>${t}</span></div>`).join('')}
     </div>
   </div>
   <div class="diag"><div class="lbl">Diagnóstico técnico:</div>${diagInforme || ''}</div>
