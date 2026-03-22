@@ -6,23 +6,25 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import {
     getFirestore, collection, addDoc, getDocs,
-    deleteDoc, doc, updateDoc
+    deleteDoc, doc, updateDoc, query, orderBy
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
+import {
+    getStorage, ref, uploadBytes, getDownloadURL, deleteObject
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
 // ===== CONFIGURACIÓN FIREBASE =====
 const firebaseConfig = {
-    apiKey: "AIzaSyBIS_xJnFZRtG_m_4yMR8QPVKUSfYww1Lk",
-    authDomain: "aircoldv2.firebaseapp.com",
-    projectId: "aircoldv2",
-    storageBucket: "aircoldv2.firebasestorage.app",
-    messagingSenderId: "433526897735",
-    appId: "1:433526897735:web:b7778a46eea8126713c562"
+    apiKey: "AIzaSyDbwc3SoFP0oD3IfP93VHkXIATol-9Xxk0",
+    authDomain: "aircold.firebaseapp.com",
+    projectId: "aircold",
+    storageBucket: "aircold.firebasestorage.app",
+    messagingSenderId: "4322426258",
+    appId: "1:4322426258:web:1ea189a051af97f636554b"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-
+const storage = getStorage(app);
 
 // ===== ESTADO GLOBAL =====
 let clientes = [];
@@ -99,9 +101,9 @@ function closeModal() {
 async function cargarDatos() {
     try {
         const [cSnap, eSnap, sSnap, tSnap] = await Promise.all([
-            getDocs(collection(db, 'clientes')),
+            getDocs(query(collection(db, 'clientes'), orderBy('nombre'))),
             getDocs(collection(db, 'equipos')),
-            getDocs(collection(db, 'servicios')),
+            getDocs(query(collection(db, 'servicios'), orderBy('fecha', 'desc'))),
             getDocs(collection(db, 'tecnicos'))
         ]);
         clientes = cSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -109,7 +111,10 @@ async function cargarDatos() {
         servicios = sSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         tecnicos = tSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-
+        if (clientes.length === 0) {
+            await crearDatosEjemplo();
+            return;
+        }
     } catch (e) {
         console.error('Error cargando datos:', e);
         toast('⚠️ Error de conexión. Verifica tu internet.');
@@ -117,29 +122,98 @@ async function cargarDatos() {
     renderView();
 }
 
+// ===== DATOS DE EJEMPLO =====
+async function crearDatosEjemplo() {
+    toast('📦 Creando datos de ejemplo...');
+    try {
+        const cliRef = await addDoc(collection(db, 'clientes'), {
+            nombre: 'KATTY VELAZCO',
+            telefono: '3043361259',
+            email: '',
+            ciudad: 'Cúcuta',
+            direccion: 'Condominio Firenze casa C 22',
+            latitud: null,
+            longitud: null
+        });
 
-// ===== FOTOS EN BASE64 (sin Storage, directo a Firestore) =====
-// Comprime a 500px máximo, calidad 0.55 => ~40-70KB por foto
-function imagenABase64(file) {
+        await addDoc(collection(db, 'tecnicos'), {
+            nombre: 'ORLANDO ORTIZ',
+            telefono: '3174022372'
+        });
+
+        const eqRef = await addDoc(collection(db, 'equipos'), {
+            clienteId: cliRef.id,
+            marca: 'MABE',
+            modelo: 'MMI12CABWCCCIII8',
+            serie: 'WCCCIII8',
+            ubicacion: 'HAB PPAL',
+            tipo: 'Split',
+            capacidad: '12.000 BTU'
+        });
+
+        const hoy = new Date().toISOString().split('T')[0];
+        await addDoc(collection(db, 'servicios'), {
+            equipoId: eqRef.id,
+            tipo: 'Mantenimiento',
+            fecha: hoy,
+            tecnico: 'ORLANDO ORTIZ',
+            descripcion: 'Mantenimiento preventivo. Limpieza de serpentines, filtros y rejillas. Revisión de drenajes. Sistema funcionando correctamente.',
+            proximoMantenimiento: calcProxFecha(hoy),
+            fotos: []
+        });
+
+        await cargarDatos();
+    } catch (e) {
+        console.error('Error creando ejemplos:', e);
+        renderView();
+    }
+}
+
+// ===== SUBIR IMAGEN A STORAGE (COMPRESIÓN AUTOMÁTICA 1200px) =====
+function comprimirImagen(file) {
     return new Promise((resolve, reject) => {
         const img = new Image();
         const url = URL.createObjectURL(file);
+        
         img.onload = () => {
             URL.revokeObjectURL(url);
             let { width, height } = img;
-            const maxPx = 500;
+            const maxPx = 1200;
+            
+            // Redimensionar manteniendo proporción
             if (width > maxPx || height > maxPx) {
-                if (width > height) { height = Math.round(height * maxPx / width); width = maxPx; }
-                else { width = Math.round(width * maxPx / height); height = maxPx; }
+                if (width > height) {
+                    height = Math.round(height * maxPx / width);
+                    width = maxPx;
+                } else {
+                    width = Math.round(width * maxPx / height);
+                    height = maxPx;
+                }
             }
+            
             const canvas = document.createElement('canvas');
-            canvas.width = width; canvas.height = height;
+            canvas.width = width;
+            canvas.height = height;
             canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.55));
+            
+            canvas.toBlob(b => resolve(b), 'image/jpeg', 0.7);
         };
-        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Error imagen')); };
+        
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Error al cargar imagen'));
+        };
+        
         img.src = url;
     });
+}
+
+async function subirImagen(file) {
+    const blob = await comprimirImagen(file);
+    const nombre = `fotos/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+    const storageRef = ref(storage, nombre);
+    await uploadBytes(storageRef, blob);
+    return await getDownloadURL(storageRef);
 }
 
 // ===== NAVEGACIÓN =====
@@ -759,12 +833,17 @@ async function guardarServicio(eid) {
         let urlsFotos = [];
         
         if (fotosValidas.length > 0) {
-            toast(`📸 Procesando ${fotosValidas.length} foto(s)...`);
-            if (btn) btn.textContent = `⏳ Comprimiendo fotos...`;
-            urlsFotos = await Promise.all(fotosValidas.map(f => imagenABase64(f)));
+            toast(`📸 Subiendo ${fotosValidas.length} foto(s) en paralelo...`);
+            if (btn) btn.textContent = `📤 Subiendo ${fotosValidas.length} foto(s)...`;
+            
+            // Subir todas las fotos en paralelo
+            const uploadPromises = fotosValidas.map(file => subirImagen(file));
+            urlsFotos = await Promise.all(uploadPromises);
+            
+            toast('✅ Fotos subidas correctamente');
         }
 
-        if (btn) btn.textContent = '💾 Guardando...';
+        if (btn) btn.textContent = '💾 Guardando servicio...';
         
         await addDoc(collection(db, 'servicios'), {
             equipoId: eid,
@@ -1100,43 +1179,23 @@ function imprimirInformePDF(eid, firmaCli = '', firmaTec = '') {
 function modalQR(eid) {
     const e = getEq(eid);
     const url = `${window.location.origin}${window.location.pathname}#/equipo/${eid}`;
-    showModal(`<div class="modal" onclick="event.stopPropagation()" style="max-width:360px;">
+    showModal(`<div class="modal" onclick="event.stopPropagation()" style="max-width:340px;">
         <div class="modal-h">
             <h3>📱 Código QR</h3>
             <button class="xbtn" onclick="closeModal()">✕</button>
         </div>
-        <div class="modal-b" style="padding:0.75rem;">
-            <div id="qrImprimible" style="border:2px dashed #cbd5e1;border-radius:12px;padding:1.2rem;text-align:center;background:white;">
-                <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:0.9rem;padding-bottom:0.8rem;border-bottom:1px solid #e2e8f0;">
-                    <img src="AIRCOLD_LOGO.png" style="height:44px;object-fit:contain;" onerror="this.outerHTML='<div style=\'border:2px solid #0f172a;padding:4px 8px;font-weight:700;font-size:0.85rem;border-radius:4px;color:#0f172a;\'>A</div>'">
-                    <div style="text-align:left;">
-                        <div style="font-size:1rem;font-weight:700;letter-spacing:2px;color:#0f172a;">AIRCOLD</div>
-                        <div style="font-size:0.58rem;color:#64748b;">CÚCUTA</div>
-                    </div>
-                </div>
-                <div style="font-size:0.95rem;font-weight:700;color:#0f172a;margin-bottom:4px;">${e?.marca} ${e?.modelo}</div>
-                <div style="font-size:0.75rem;color:#475569;margin-bottom:1rem;">📍 ${e?.ubicacion}</div>
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}"
-                    style="width:180px;height:180px;border-radius:6px;margin-bottom:0.7rem;" alt="QR">
-                <div style="font-size:0.58rem;color:#94a3b8;word-break:break-all;margin-bottom:5px;">${url}</div>
-                <div style="font-size:0.75rem;font-weight:600;color:#0f172a;margin-top:4px;">📞 3174022372</div>
-            </div>
-            <div style="display:flex;gap:0.5rem;margin-top:0.7rem;">
-                <button class="btn btn-gray" style="flex:1;" onclick="closeModal()">Cerrar</button>
-                <button class="btn btn-blue" style="flex:2;" onclick="imprimirQR()">🖨️ Imprimir QR</button>
+        <div class="modal-b" style="text-align:center;">
+            <div style="font-size:0.88rem;font-weight:700;margin-bottom:4px;">${e?.marca} ${e?.modelo}</div>
+            <div style="font-size:0.75rem;color:var(--hint);margin-bottom:0.8rem;">📍 ${e?.ubicacion}</div>
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}"
+                style="border-radius:8px;margin-bottom:0.6rem;" alt="QR">
+            <p style="font-size:0.65rem;color:var(--hint);word-break:break-all;">${url}</p>
+            <div class="modal-foot" style="justify-content:center;margin-top:0.8rem;">
+                <button class="btn btn-gray" onclick="closeModal()">Cerrar</button>
+                <button class="btn btn-blue" onclick="window.print();toast('🖨️ Imprimiendo...')">🖨️ Imprimir</button>
             </div>
         </div>
     </div>`);
-}
-
-function imprimirQR() {
-    const qr = document.getElementById('qrImprimible');
-    if (!qr) return;
-    const win = window.open('', '_blank');
-    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:white;}@media print{body{min-height:auto;}}@page{size:A5;margin:1cm;}</style></head><body>' + qr.outerHTML + '</body></html>';
-    win.document.write(html);
-    win.document.close();
-    setTimeout(() => win.print(), 400);
 }
 
 // ============================================
@@ -1209,7 +1268,6 @@ async function guardarCliente() {
             longitud: document.getElementById('cLng')?.value || null,
             fechaCreacion: new Date().toISOString().split('T')[0]
         });
-        closeModal();
         await cargarDatos();
         toast('✅ Cliente guardado');
     } catch (e) { toast('⚠️ Error al guardar'); }
@@ -1248,7 +1306,6 @@ async function actualizarCliente(cid) {
             ciudad: document.getElementById('eCiudad').value,
             direccion: document.getElementById('eDir').value
         });
-        closeModal();
         await cargarDatos();
         toast('✅ Cliente actualizado');
     } catch (e) { toast('⚠️ Error al actualizar'); }
@@ -1325,7 +1382,6 @@ async function guardarEquipo(cid) {
             ubicacion: u,
             tipo: document.getElementById('qTipo')?.value || ''
         });
-        closeModal();
         await cargarDatos();
         goTo('detalle', cid);
         toast('✅ Equipo guardado');
@@ -1370,7 +1426,6 @@ async function guardarTecnico() {
     if (!n || !t) { toast('⚠️ Complete los campos'); return; }
     try {
         await addDoc(collection(db, 'tecnicos'), { nombre: n, telefono: t });
-        closeModal();
         await cargarDatos();
         toast('✅ Técnico guardado');
     } catch (e) { toast('⚠️ Error'); }
@@ -1381,7 +1436,6 @@ async function actualizarTecnico(tid) {
             nombre: document.getElementById('etNombre').value,
             telefono: document.getElementById('etTel').value
         });
-        closeModal();
         await cargarDatos();
         toast('✅ Técnico actualizado');
     } catch (e) { toast('⚠️ Error'); }
@@ -1412,42 +1466,33 @@ function manejarRutaQR() {
     if (topbar) topbar.style.display = 'none';
     if (botnav) botnav.style.display = 'none';
     main.style.background = 'white';
-    const waMsg = encodeURIComponent(`Hola soy tu cliente ${c?.nombre} y tengo una necesidad con mi equipo ${e.marca} ${e.modelo} (${e.ubicacion})`);
-    main.innerHTML = `<div style="max-width:600px;margin:0 auto;padding:1.2rem;">
-        <div style="text-align:center;margin-bottom:1.2rem;">
-            <img src="AIRCOLD_LOGO.png" style="max-height:60px;max-width:180px;object-fit:contain;margin-bottom:5px;" alt="AIRCOLD" onerror="this.outerHTML='<div style=&quot;font-size:1.4rem;font-weight:700;letter-spacing:2px;color:#0f172a;&quot;>AIRCOLD</div>'">
-            <div style="font-size:0.72rem;color:#64748b;">Cúcuta · CL 23N #2-99 · 3174022372</div>
+    main.innerHTML = `<div style="max-width:600px;margin:0 auto;padding:1.5rem;">
+        <div style="text-align:center;margin-bottom:1.5rem;">
+            <img src="AIRCOLD_LOGO.png" style="max-height:65px;max-width:200px;object-fit:contain;margin-bottom:6px;" alt="AIRCOLD" onerror="this.outerHTML='<div style=&quot;font-size:1.5rem;font-weight:700;letter-spacing:2px;color:#0f172a;&quot;>AIRCOLD</div>'">
+            <div style="font-size:0.75rem;color:#64748b;">Cúcuta · CL 23N #2-99 · 3174022372</div>
         </div>
-        <div style="border:0.5px solid #e2e8f0;border-radius:12px;padding:0.9rem;margin-bottom:1rem;background:#f8fafc;">
-            <div style="font-size:0.95rem;font-weight:700;color:#0f172a;">📍 ${e.marca} ${e.modelo}</div>
-            <div style="font-size:0.78rem;color:#475569;margin-top:2px;">Ubicación: ${e.ubicacion}</div>
-            <div style="font-size:0.75rem;color:#475569;">Cliente: ${c?.nombre}</div>
-            <div style="font-size:0.72rem;color:#94a3b8;">Serie: ${e.serie || 'N/A'}</div>
+        <div style="border:0.5px solid #e2e8f0;border-radius:12px;padding:1rem;margin-bottom:1rem;background:#f8fafc;">
+            <div style="font-size:1rem;font-weight:700;">📍 ${e.marca} ${e.modelo}</div>
+            <div style="font-size:0.82rem;color:#475569;">Ubicación: ${e.ubicacion}</div>
+            <div style="font-size:0.78rem;color:#475569;">Cliente: ${c?.nombre}</div>
+            <div style="font-size:0.75rem;color:#94a3b8;">Serie: ${e.serie || 'N/A'}</div>
         </div>
-        <div style="font-size:0.88rem;font-weight:700;margin-bottom:0.7rem;">Historial de servicios (${ss.length})</div>
-        ${ss.map(s => {
-            const fotosHtml = (s.fotos || []).length > 0
-                ? `<div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;">${(s.fotos || []).map(f => `<img src="${f}" style="width:65px;height:65px;border-radius:6px;object-fit:cover;border:0.5px solid #e2e8f0;">`).join('')}</div>`
-                : '';
-            return `<div style="border:0.5px solid #bfdbfe;border-radius:10px;padding:0.85rem;margin-bottom:0.6rem;background:white;">
-                <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-                    <span style="background:#dbeafe;color:#2563eb;padding:2px 8px;border-radius:20px;font-size:0.72rem;font-weight:600;">${s.tipo}</span>
-                    <span style="font-size:0.72rem;color:#94a3b8;">${fmtFecha(s.fecha)}</span>
-                </div>
-                <div style="font-size:0.8rem;color:#475569;">🔧 ${s.tecnico}</div>
-                <div style="font-size:0.78rem;color:#64748b;margin-top:2px;">${s.descripcion}</div>
-                ${s.proximoMantenimiento ? `<div style="font-size:0.72rem;color:#d97706;margin-top:3px;">📅 Próximo: ${fmtFecha(s.proximoMantenimiento)}</div>` : ''}
-                ${fotosHtml}
-            </div>`;
-        }).join('')}
-        <div style="margin-top:1rem;padding-top:0.85rem;border-top:0.5px solid #e2e8f0;text-align:center;">
-            <a href="https://wa.me/573174022372?text=${encodeURIComponent(`Hola soy tu cliente ${c?.nombre} y tengo una necesidad con mi equipo ${e.marca} ${e.modelo} (${e.ubicacion})`)}"
-                target="_blank"
-                style="display:inline-flex;align-items:center;gap:7px;background:#25D366;color:white;border-radius:25px;padding:10px 20px;font-size:0.85rem;font-weight:600;text-decoration:none;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.126.553 4.12 1.518 5.855L0 24l6.335-1.484A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.854 0-3.6-.5-5.112-1.374l-.368-.217-3.76.881.918-3.658-.239-.377A9.957 9.957 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
-                Contactar AIRCOLD
-            </a>
-            <div style="font-size:0.62rem;color:#94a3b8;margin-top:0.75rem;">Generado por capacitADA · Sistema de Gestión HVAC</div>
+        <div style="font-size:0.88rem;font-weight:700;margin-bottom:0.75rem;">Historial de servicios (${ss.length})</div>
+        ${ss.map(s => `
+        <div style="border:0.5px solid #bfdbfe;border-radius:10px;padding:0.85rem;margin-bottom:0.65rem;background:white;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                <span style="background:#dbeafe;color:#2563eb;padding:2px 8px;border-radius:20px;font-size:0.72rem;font-weight:600;">${s.tipo}</span>
+                <span style="font-size:0.75rem;color:#94a3b8;">${fmtFecha(s.fecha)}</span>
+            </div>
+            <div style="font-size:0.82rem;color:#475569;">🔧 ${s.tecnico}</div>
+            <div style="font-size:0.8rem;color:#64748b;margin-top:2px;">${s.descripcion}</div>
+            ${s.proximoMantenimiento ? `<div style="font-size:0.75rem;color:#d97706;margin-top:3px;">📅 Próximo: ${fmtFecha(s.proximoMantenimiento)}</div>` : ''}
+            <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;">
+                ${(s.fotos || []).map(f => `<img src="${f}" style="width:60px;height:60px;border-radius:6px;object-fit:cover;" loading="lazy">`).join('')}
+            </div>
+        </div>`).join('')}
+        <div style="text-align:center;font-size:0.7rem;color:#94a3b8;margin-top:1rem;padding-top:0.75rem;border-top:0.5px solid #e2e8f0;">
+            Generado por capacitADA · Sistema de Gestión HVAC
         </div>
     </div>`;
     return true;
@@ -1492,7 +1537,6 @@ window.volverDesdeInforme = volverDesdeInforme;
 window.exportarPDFInforme = exportarPDFInforme;
 window.obtenerGPS = obtenerGPS;
 window.enviarWhatsApp = enviarWhatsApp;
-window.imprimirQR = imprimirQR;
 
 // ============================================
 // BOTTOM NAV
