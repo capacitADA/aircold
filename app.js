@@ -93,7 +93,7 @@ function closeModal() {
     fotosNuevas[0] = fotosNuevas[1] = fotosNuevas[2] = null;
 }
 
-// ===== CARGAR DATOS FIREBASE (SIN DATOS DE EJEMPLO) =====
+// ===== CARGAR DATOS FIREBASE =====
 async function cargarDatos() {
     const main = document.getElementById('mainContent');
     main.innerHTML = '<div class="loading-screen"><div class="loading-spinner"></div><p>Cargando datos...</p></div>';
@@ -767,7 +767,7 @@ function borrarFoto(e, idx) {
     }
 }
 
-// ===== GUARDAR SERVICIO CON SUBIDA EN PARALELO =====
+// ===== GUARDAR SERVICIO =====
 async function guardarServicio(eid) {
     const desc = document.getElementById('sDesc')?.value?.trim();
     if (!desc) { toast('⚠️ Ingresa el diagnóstico'); return; }
@@ -914,6 +914,7 @@ function volverDesdeInforme(eid) {
     }, 50);
 }
 
+// ===== EXPORTAR PDF (DESCARGA DIRECTA) =====
 function exportarPDFInforme(eid) {
     const diagInforme = document.getElementById('iDiag')?.value || '';
     const e = getEq(eid);
@@ -934,7 +935,6 @@ function exportarPDFInforme(eid) {
   body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 0; }
   .hdr { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 10px; }
   .hdr-logo { display: flex; align-items: center; gap: 8px; }
-  .logo-box { border: 2px solid #0f172a; padding: 4px 8px; font-weight: 700; font-size: 1rem; }
   .brand { font-size: 1.1rem; font-weight: 700; letter-spacing: 2px; }
   .contact { text-align: right; font-size: 10px; color: #475569; font-style: italic; line-height: 1.6; }
   table.fields { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
@@ -992,35 +992,26 @@ function exportarPDFInforme(eid) {
 </body>
 </html>`;
 
-    const win = window.open('', '_blank');
-    if (win) {
-        win.document.write(html);
-        win.document.close();
-        win.onload = () => setTimeout(() => win.print(), 300);
-    }
-
-    closeModal();
-    modalNuevoServicio(eid);
-    setTimeout(() => {
-        const sDesc = document.getElementById('sDesc');
-        if (sDesc && diagInforme) sDesc.value = diagInforme;
-        toast('🖨️ PDF generado. Datos del servicio intactos.');
-    }, 50);
+    const blob = new Blob([html], { type: 'application/pdf' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = `Informe_${e?.marca}_${e?.modelo}_${fecha}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast('📄 PDF descargado');
 }
 
 // ============================================
-// INFORME PDF HISTORIAL
+// INFORME PDF HISTORIAL (DESCARGA DIRECTA)
 // ============================================
 async function generarInformePDF(eid) {
-    imprimirInformePDF(eid, '', tecnicos[0]?.nombre || '');
-}
-
-function imprimirInformePDF(eid, firmaCli = '', firmaTec = '') {
     const e = getEq(eid);
     const c = getCl(e?.clienteId);
     const ss = getServiciosEquipo(eid).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-    firmaTec = firmaTec || tecnicos[0]?.nombre || '';
-    firmaCli = firmaCli || '';
 
     const html = `<!DOCTYPE html>
 <html lang="es">
@@ -1091,43 +1082,43 @@ function imprimirInformePDF(eid, firmaCli = '', firmaTec = '') {
   <div class="firmas">
     <div class="firma">
       <div class="firma-line"></div>
-      <div style="font-size:11px;font-weight:700;">${firmaTec}</div>
+      <div style="font-size:11px;font-weight:700;">${tecnicos[0]?.nombre || ''}</div>
       <div style="font-size:10px;color:#64748b;">TÉCNICO</div>
     </div>
     <div class="firma">
       <div class="firma-line"></div>
-      <div style="font-size:11px;font-weight:700;">${firmaCli || '___________'}</div>
+      <div style="font-size:11px;font-weight:700;">___________</div>
       <div style="font-size:10px;color:#64748b;">CLIENTE</div>
     </div>
   </div>
-  <div class="footer">Documento generado por capacitADA · Sistema de Gestión HVAC · ${new Date().toLocaleDateString('es-ES')}</div>
+  <div class="footer">Documento generado por AIRCOLD · Sistema de Gestión HVAC · ${new Date().toLocaleDateString('es-ES')}</div>
 </body>
 </html>`;
 
-    const win = window.open('', '_blank');
-    if (win) {
-        win.document.write(html);
-        win.document.close();
-        win.onload = () => {
-            const imgs = win.document.images;
-            if (!imgs.length) { setTimeout(() => win.print(), 300); return; }
-            let loaded = 0;
-            const check = () => { loaded++; if (loaded >= imgs.length) setTimeout(() => win.print(), 300); };
-            Array.from(imgs).forEach(img => {
-                if (img.complete) check();
-                else { img.onload = check; img.onerror = check; }
-            });
-        };
-    }
+    const blob = new Blob([html], { type: 'application/pdf' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = `Informe_${e?.marca}_${e?.modelo}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast('📄 PDF descargado');
     closeModal();
 }
 
 // ============================================
-// MODAL: QR
+// MODAL: QR CON BOTÓN WHATSAPP
 // ============================================
 function modalQR(eid) {
     const e = getEq(eid);
+    const c = getCl(e?.clienteId);
     const url = `${window.location.origin}${window.location.pathname}#/equipo/${eid}`;
+    const telefonoEmpresa = "573174022372";
+    const mensajeWhatsApp = `Hola, soy tu cliente ${c?.nombre || 'cliente'} y tengo una necesidad con mi equipo ${e?.marca || ''} ${e?.modelo || ''} (${e?.ubicacion || ''})`;
+    
     showModal(`<div class="modal" onclick="event.stopPropagation()" style="max-width:340px;">
         <div class="modal-h">
             <h3>📱 Código QR</h3>
@@ -1136,12 +1127,15 @@ function modalQR(eid) {
         <div class="modal-b" style="text-align:center;">
             <div style="font-size:0.88rem;font-weight:700;margin-bottom:4px;">${e?.marca} ${e?.modelo}</div>
             <div style="font-size:0.75rem;color:var(--hint);margin-bottom:0.8rem;">📍 ${e?.ubicacion}</div>
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}"
-                style="border-radius:8px;margin-bottom:0.6rem;" alt="QR">
-            <p style="font-size:0.65rem;color:var(--hint);word-break:break-all;">${url}</p>
-            <div class="modal-foot" style="justify-content:center;margin-top:0.8rem;">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}"
+                style="border-radius:12px;margin-bottom:0.8rem;width:180px;height:180px;" alt="QR">
+            <div class="modal-foot" style="flex-direction:column;gap:10px;margin-top:0.5rem;">
+                <button class="btn btn-wa" style="width:100%;background:#25D366;color:white;padding:12px;font-size:0.9rem;border:none;border-radius:10px;cursor:pointer;" 
+                    onclick="window.open('https://wa.me/${telefonoEmpresa}?text=${encodeURIComponent(mensajeWhatsApp)}', '_blank')">
+                    💬 Contactar por WhatsApp
+                </button>
+                <button class="btn btn-gray" onclick="window.print();toast('🖨️ Imprimiendo QR...')">🖨️ Imprimir QR</button>
                 <button class="btn btn-gray" onclick="closeModal()">Cerrar</button>
-                <button class="btn btn-blue" onclick="window.print();toast('🖨️ Imprimiendo...')">🖨️ Imprimir</button>
             </div>
         </div>
     </div>`);
@@ -1399,7 +1393,7 @@ async function eliminarTecnico(tid) {
 }
 
 // ============================================
-// RUTA PÚBLICA QR
+// RUTA PÚBLICA QR CON BOTÓN WHATSAPP
 // ============================================
 function manejarRutaQR() {
     const hash = window.location.hash;
@@ -1440,8 +1434,14 @@ function manejarRutaQR() {
                 ${(s.fotos || []).map(f => `<img src="${f}" style="width:60px;height:60px;border-radius:6px;object-fit:cover;" loading="lazy">`).join('')}
             </div>
         </div>`).join('')}
+        <div style="margin-top:1.5rem;">
+            <button style="width:100%;background:#25D366;color:white;border:none;padding:12px;border-radius:12px;font-size:1rem;font-weight:600;cursor:pointer;"
+                onclick="window.open('https://wa.me/573174022372?text=${encodeURIComponent('Hola, soy tu cliente ' + (c?.nombre || '') + ' y necesito soporte para mi equipo ' + (e?.marca || '') + ' ' + (e?.modelo || '') + ' (' + (e?.ubicacion || '') + ')')}', '_blank')">
+                💬 Contactar con AIRCOLD por WhatsApp
+            </button>
+        </div>
         <div style="text-align:center;font-size:0.7rem;color:#94a3b8;margin-top:1rem;padding-top:0.75rem;border-top:0.5px solid #e2e8f0;">
-            Generado por capacitADA · Sistema de Gestión HVAC
+            Generado por AIRCOLD · Sistema de Gestión HVAC
         </div>
     </div>`;
     return true;
@@ -1467,7 +1467,6 @@ window.modalQR = modalQR;
 window.modalNuevoTecnico = modalNuevoTecnico;
 window.modalEditarTecnico = modalEditarTecnico;
 window.generarInformePDF = generarInformePDF;
-window.imprimirInformePDF = imprimirInformePDF;
 window.guardarCliente = guardarCliente;
 window.guardarEquipo = guardarEquipo;
 window.guardarServicio = guardarServicio;
