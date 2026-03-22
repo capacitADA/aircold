@@ -8,23 +8,19 @@ import {
     getFirestore, collection, addDoc, getDocs,
     deleteDoc, doc, updateDoc, query, orderBy
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import {
-    getStorage, ref, uploadBytes, getDownloadURL, deleteObject
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-// ===== CONFIGURACIÓN FIREBASE =====
+// ===== CONFIGURACIÓN FIREBASE - AIRCOLDV2 =====
 const firebaseConfig = {
-    apiKey: "AIzaSyDbwc3SoFP0oD3IfP93VHkXIATol-9Xxk0",
-    authDomain: "aircold.firebaseapp.com",
-    projectId: "aircold",
-    storageBucket: "aircold.firebasestorage.app",
-    messagingSenderId: "4322426258",
-    appId: "1:4322426258:web:1ea189a051af97f636554b"
+    apiKey: "AIzaSyBIS_xJnFZRtG_m_4yMR8QPVKUSfYww1Lk",
+    authDomain: "aircoldv2.firebaseapp.com",
+    projectId: "aircoldv2",
+    storageBucket: "aircoldv2.firebasestorage.app",
+    messagingSenderId: "433526897735",
+    appId: "1:433526897735:web:b7778a46eea8126713c562"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const storage = getStorage(app);
 
 // ===== ESTADO GLOBAL =====
 let clientes = [];
@@ -97,27 +93,37 @@ function closeModal() {
     fotosNuevas[0] = fotosNuevas[1] = fotosNuevas[2] = null;
 }
 
-// ===== CARGAR DATOS FIREBASE =====
+// ===== CARGAR DATOS FIREBASE (OPTIMIZADO) =====
 async function cargarDatos() {
+    const main = document.getElementById('mainContent');
+    main.innerHTML = '<div class="loading-screen"><div class="loading-spinner"></div><p>Cargando datos...</p></div>';
+    
     try {
-        const [cSnap, eSnap, sSnap, tSnap] = await Promise.all([
-            getDocs(query(collection(db, 'clientes'), orderBy('nombre'))),
-            getDocs(collection(db, 'equipos')),
-            getDocs(query(collection(db, 'servicios'), orderBy('fecha', 'desc'))),
-            getDocs(collection(db, 'tecnicos'))
-        ]);
-        clientes = cSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        equipos = eSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        servicios = sSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        tecnicos = tSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-        if (clientes.length === 0) {
+        // Cargar cada colección por separado para mejor control
+        const clientesSnap = await getDocs(query(collection(db, 'clientes'), orderBy('nombre')));
+        clientes = clientesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        const equiposSnap = await getDocs(collection(db, 'equipos'));
+        equipos = equiposSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        const serviciosSnap = await getDocs(query(collection(db, 'servicios'), orderBy('fecha', 'desc')));
+        servicios = serviciosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        const tecnicosSnap = await getDocs(collection(db, 'tecnicos'));
+        tecnicos = tecnicosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        if (clientes.length === 0 && equipos.length === 0 && servicios.length === 0 && tecnicos.length === 0) {
             await crearDatosEjemplo();
             return;
         }
+        
+        toast('✅ Listo', 1000);
+        
     } catch (e) {
         console.error('Error cargando datos:', e);
-        toast('⚠️ Error de conexión. Verifica tu internet.');
+        toast('⚠️ Error de conexión. Revisa tu internet.', 4000);
+        main.innerHTML = '<div class="page" style="text-align:center;padding:2rem;"><p>⚠️ Error al cargar datos</p><button class="btn btn-blue" onclick="location.reload()">Reintentar</button></div>';
+        return;
     }
     renderView();
 }
@@ -169,7 +175,7 @@ async function crearDatosEjemplo() {
     }
 }
 
-// ===== SUBIR IMAGEN A STORAGE (COMPRESIÓN AUTOMÁTICA 1200px) =====
+// ===== SUBIR IMAGEN (Base64, sin Storage) =====
 function comprimirImagen(file) {
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -180,7 +186,6 @@ function comprimirImagen(file) {
             let { width, height } = img;
             const maxPx = 1200;
             
-            // Redimensionar manteniendo proporción
             if (width > maxPx || height > maxPx) {
                 if (width > height) {
                     height = Math.round(height * maxPx / width);
@@ -210,10 +215,11 @@ function comprimirImagen(file) {
 
 async function subirImagen(file) {
     const blob = await comprimirImagen(file);
-    const nombre = `fotos/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-    const storageRef = ref(storage, nombre);
-    await uploadBytes(storageRef, blob);
-    return await getDownloadURL(storageRef);
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+    });
 }
 
 // ===== NAVEGACIÓN =====
@@ -833,10 +839,9 @@ async function guardarServicio(eid) {
         let urlsFotos = [];
         
         if (fotosValidas.length > 0) {
-            toast(`📸 Subiendo ${fotosValidas.length} foto(s) en paralelo...`);
+            toast(`📸 Subiendo ${fotosValidas.length} foto(s)...`);
             if (btn) btn.textContent = `📤 Subiendo ${fotosValidas.length} foto(s)...`;
             
-            // Subir todas las fotos en paralelo
             const uploadPromises = fotosValidas.map(file => subirImagen(file));
             urlsFotos = await Promise.all(uploadPromises);
             
@@ -1014,16 +1019,13 @@ function exportarPDFInforme(eid) {
     <div class="contact">Servicios de Refrigeración<br>Cll. 23N # 2-99 Prados Norte<br>3174022372 – 3232458563</div>
   </div>
   <table class="fields">
-    <tr><td><span class="lbl">Entidad</span><br>${c?.nombre || ''}</td>
-    <td><span class="lbl">Ubicación del equipo</span><br>${e?.ubicacion || ''}</td>
-    </tr>
-    <tr><td><span class="lbl">Marca de equipo</span><br>${e?.marca || ''}</td>
-    <td><span class="lbl">Modelo y serial</span><br>${e?.modelo || ''} · ${e?.serie || ''}</td>
-    </tr>
-    <tr><td><span class="lbl">Fecha</span><br>${fecha}</td>
-    <td><span class="lbl">Valor</span><br>${valor || 'ΦΦΦ'}</td>
-    </tr>
-   </table>
+     <tr><td><span class="lbl">Entidad</span><br>${c?.nombre || ''}</td>
+     <td><span class="lbl">Ubicación del equipo</span><br>${e?.ubicacion || ''}</td></tr>
+     <tr><td><span class="lbl">Marca de equipo</span><br>${e?.marca || ''}</td>
+     <td><span class="lbl">Modelo y serial</span><br>${e?.modelo || ''} · ${e?.serie || ''}</td></tr>
+     <tr><td><span class="lbl">Fecha</span><br>${fecha}</td>
+     <td><span class="lbl">Valor</span><br>${valor || 'ΦΦΦ'}</td></tr>
+    </table>
   <div class="section-title">Control de Mantenimiento</div>
   <div class="ck-grid">
     <div class="ck-col">
