@@ -8,9 +8,7 @@ import {
     getFirestore, collection, addDoc, getDocs,
     deleteDoc, doc, updateDoc, query, orderBy
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import {
-    getStorage, ref, uploadBytes, getDownloadURL, deleteObject
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+
 
 // ===== CONFIGURACIÓN FIREBASE =====
 const firebaseConfig = {
@@ -24,7 +22,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const storage = getStorage(app);
+
 
 // ===== ESTADO GLOBAL =====
 let clientes = [];
@@ -169,51 +167,28 @@ async function crearDatosEjemplo() {
     }
 }
 
-// ===== SUBIR IMAGEN A STORAGE (COMPRESIÓN AUTOMÁTICA 1200px) =====
-function comprimirImagen(file) {
+// ===== FOTOS EN BASE64 (sin Storage, directo a Firestore) =====
+// Comprime a 500px máximo, calidad 0.55 => ~40-70KB por foto
+function imagenABase64(file) {
     return new Promise((resolve, reject) => {
         const img = new Image();
         const url = URL.createObjectURL(file);
-        
         img.onload = () => {
             URL.revokeObjectURL(url);
             let { width, height } = img;
-            const maxPx = 1200;
-            
-            // Redimensionar manteniendo proporción
+            const maxPx = 500;
             if (width > maxPx || height > maxPx) {
-                if (width > height) {
-                    height = Math.round(height * maxPx / width);
-                    width = maxPx;
-                } else {
-                    width = Math.round(width * maxPx / height);
-                    height = maxPx;
-                }
+                if (width > height) { height = Math.round(height * maxPx / width); width = maxPx; }
+                else { width = Math.round(width * maxPx / height); height = maxPx; }
             }
-            
             const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
+            canvas.width = width; canvas.height = height;
             canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-            
-            canvas.toBlob(b => resolve(b), 'image/jpeg', 0.7);
+            resolve(canvas.toDataURL('image/jpeg', 0.55));
         };
-        
-        img.onerror = () => {
-            URL.revokeObjectURL(url);
-            reject(new Error('Error al cargar imagen'));
-        };
-        
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Error imagen')); };
         img.src = url;
     });
-}
-
-async function subirImagen(file) {
-    const blob = await comprimirImagen(file);
-    const nombre = `fotos/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-    const storageRef = ref(storage, nombre);
-    await uploadBytes(storageRef, blob);
-    return await getDownloadURL(storageRef);
 }
 
 // ===== NAVEGACIÓN =====
@@ -833,17 +808,12 @@ async function guardarServicio(eid) {
         let urlsFotos = [];
         
         if (fotosValidas.length > 0) {
-            toast(`📸 Subiendo ${fotosValidas.length} foto(s) en paralelo...`);
-            if (btn) btn.textContent = `📤 Subiendo ${fotosValidas.length} foto(s)...`;
-            
-            // Subir todas las fotos en paralelo
-            const uploadPromises = fotosValidas.map(file => subirImagen(file));
-            urlsFotos = await Promise.all(uploadPromises);
-            
-            toast('✅ Fotos subidas correctamente');
+            toast(`📸 Procesando ${fotosValidas.length} foto(s)...`);
+            if (btn) btn.textContent = `⏳ Comprimiendo fotos...`;
+            urlsFotos = await Promise.all(fotosValidas.map(f => imagenABase64(f)));
         }
 
-        if (btn) btn.textContent = '💾 Guardando servicio...';
+        if (btn) btn.textContent = '💾 Guardando...';
         
         await addDoc(collection(db, 'servicios'), {
             equipoId: eid,
