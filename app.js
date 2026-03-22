@@ -1111,7 +1111,9 @@ function modalQR(eid) {
     document.body.appendChild(qrDiv);
 
     // QRCode.js genera un <canvas> directamente — sin petición externa
-    const qrCode = new QRCode(qrDiv, {
+    const QRCodeLib = window.QRCode;
+    if (!QRCodeLib) { toast('⚠️ Librería QR no cargada, recarga la página'); document.body.removeChild(qrDiv); return; }
+    const qrCode = new QRCodeLib(qrDiv, {
         text: url,
         width: 400,
         height: 400,
