@@ -1096,165 +1096,147 @@ async function generarInformePDF(eid) {
 }
 
 // ============================================
-// MODAL: QR — DESCARGA DIRECTA PNG (sin CORS)
+// MODAL: QR — MUESTRA MODAL Y DESCARGA PNG
 // ============================================
 function modalQR(eid) {
     const e = getEq(eid);
     const c = getCl(e?.clienteId);
     const url = `${window.location.origin}${window.location.pathname}#/equipo/${eid}`;
+    const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}`;
 
-    toast('⏳ Generando etiqueta QR...');
+    showModal(`<div class="modal" onclick="event.stopPropagation()" style="max-width:340px;">
+        <div class="modal-h">
+            <h3>📱 Código QR</h3>
+            <button class="xbtn" onclick="closeModal()">✕</button>
+        </div>
+        <div class="modal-b" style="text-align:center;">
+            <div style="font-size:0.88rem;font-weight:700;color:#0f172a;margin-bottom:4px;">${e?.marca} ${e?.modelo}</div>
+            <div style="font-size:0.75rem;color:#64748b;margin-bottom:1rem;display:flex;align-items:center;justify-content:center;gap:4px;">
+                <span style="color:#dc2626;font-size:10px;">●</span> ${e?.ubicacion}
+            </div>
 
-    // Generar QR localmente en un div oculto usando QRCode.js
-    const qrDiv = document.createElement('div');
-    qrDiv.style.cssText = 'position:fixed;top:-9999px;left:-9999px;';
-    document.body.appendChild(qrDiv);
+            <div style="border:3px solid #1d4ed8;border-radius:12px;padding:12px;display:inline-block;margin-bottom:1rem;">
+                <div style="background:#1e40af;border-radius:6px;padding:6px 14px;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;">
+                    <img src="AIRCOLD_LOGO.png" style="height:28px;object-fit:contain;filter:brightness(10);" onerror="this.style.display='none'" alt="AIRCOLD">
+                    <div style="text-align:left;">
+                        <div style="font-size:13px;font-weight:700;color:white;letter-spacing:2px;">AIRCOLD</div>
+                        <div style="font-size:9px;color:#93c5fd;letter-spacing:1px;">CÚCUTA</div>
+                    </div>
+                </div>
+                <img id="qrImg" src="${qrApiUrl}" style="width:200px;height:200px;border-radius:6px;display:block;" alt="QR">
+                <div style="font-size:8px;color:#94a3b8;margin-top:6px;word-break:break-all;max-width:200px;">${url}</div>
+                <div style="border-top:1px solid #e2e8f0;margin:8px 0 6px;"></div>
+                <div style="font-size:20px;font-weight:700;color:#0f172a;letter-spacing:1px;">317 402 2372</div>
+            </div>
 
-    // QRCode.js genera un <canvas> directamente — sin petición externa
-    const QRCodeLib = window.QRCode;
-    if (!QRCodeLib) { toast('⚠️ Librería QR no cargada, recarga la página'); document.body.removeChild(qrDiv); return; }
-    const qrCode = new QRCodeLib(qrDiv, {
-        text: url,
-        width: 400,
-        height: 400,
-        colorDark: '#000000',
-        colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.M
-    });
+            <div style="display:flex;flex-direction:column;gap:8px;">
+                <button class="btn btn-blue btn-full" onclick="descargarQR('${eid}')">⬇️ Descargar imagen</button>
+                <button class="btn btn-gray btn-full" onclick="closeModal()">Cerrar</button>
+            </div>
+        </div>
+    </div>`);
+}
 
-    // Esperar a que QRCode.js termine de dibujar
-    setTimeout(() => {
-        const qrCanvas = qrDiv.querySelector('canvas');
-        if (!qrCanvas) {
-            document.body.removeChild(qrDiv);
-            toast('⚠️ Error al generar QR');
-            return;
-        }
+function descargarQR(eid) {
+    const e = getEq(eid);
+    const c = getCl(e?.clienteId);
+    const url = `${window.location.origin}${window.location.pathname}#/equipo/${eid}`;
 
-        const dibujar = (logoImg) => {
-            const W = 420, H = 580;
-            const canvas = document.createElement('canvas');
-            canvas.width = W;
-            canvas.height = H;
-            const ctx = canvas.getContext('2d');
+    toast('⏳ Preparando descarga...');
 
-            // Fondo blanco
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, W, H);
+    const qrImg = document.getElementById('qrImg');
+    if (!qrImg || !qrImg.complete) {
+        toast('⚠️ El QR aún está cargando, espera un momento');
+        return;
+    }
 
-            // Borde exterior azul con esquinas redondeadas
-            ctx.strokeStyle = '#1d4ed8';
-            ctx.lineWidth = 4;
-            const r = 16;
-            ctx.beginPath();
-            ctx.moveTo(10 + r, 10);
-            ctx.lineTo(W - 10 - r, 10);
-            ctx.quadraticCurveTo(W - 10, 10, W - 10, 10 + r);
-            ctx.lineTo(W - 10, H - 10 - r);
-            ctx.quadraticCurveTo(W - 10, H - 10, W - 10 - r, H - 10);
-            ctx.lineTo(10 + r, H - 10);
-            ctx.quadraticCurveTo(10, H - 10, 10, H - 10 - r);
-            ctx.lineTo(10, 10 + r);
-            ctx.quadraticCurveTo(10, 10, 10 + r, 10);
-            ctx.closePath();
-            ctx.stroke();
+    const W = 420, H = 590;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
 
-            // Logo o fallback texto
-            if (logoImg && logoImg.naturalWidth > 0) {
-                // Mantener proporción del logo
-                const maxW = 200, maxH = 64;
-                const ratio = Math.min(maxW / logoImg.naturalWidth, maxH / logoImg.naturalHeight);
-                const lw = logoImg.naturalWidth * ratio;
-                const lh = logoImg.naturalHeight * ratio;
-                ctx.drawImage(logoImg, (W - lw) / 2, 28, lw, lh);
-            } else {
-                // Caja azul con texto AIRCOLD
-                ctx.fillStyle = '#1e40af';
-                const bx = W/2 - 90, by = 28, bw = 180, bh = 54;
-                ctx.beginPath();
-                ctx.moveTo(bx + 8, by);
-                ctx.lineTo(bx + bw - 8, by);
-                ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + 8);
-                ctx.lineTo(bx + bw, by + bh - 8);
-                ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - 8, by + bh);
-                ctx.lineTo(bx + 8, by + bh);
-                ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - 8);
-                ctx.lineTo(bx, by + 8);
-                ctx.quadraticCurveTo(bx, by, bx + 8, by);
-                ctx.closePath();
-                ctx.fill();
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 26px Arial, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('AIRCOLD', W / 2, by + 34);
-                ctx.font = '12px Arial, sans-serif';
-                ctx.fillStyle = '#93c5fd';
-                ctx.fillText('CÚCUTA', W / 2, by + 50);
-            }
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
 
-            // Nombre equipo
-            ctx.fillStyle = '#0f172a';
-            ctx.font = 'bold 18px Arial, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(`${e?.marca || ''} ${e?.modelo || ''}`, W / 2, 118);
+    // Borde azul redondeado
+    ctx.strokeStyle = '#1d4ed8';
+    ctx.lineWidth = 4;
+    const r = 16;
+    ctx.beginPath();
+    ctx.moveTo(10+r,10); ctx.lineTo(W-10-r,10); ctx.quadraticCurveTo(W-10,10,W-10,10+r);
+    ctx.lineTo(W-10,H-10-r); ctx.quadraticCurveTo(W-10,H-10,W-10-r,H-10);
+    ctx.lineTo(10+r,H-10); ctx.quadraticCurveTo(10,H-10,10,H-10-r);
+    ctx.lineTo(10,10+r); ctx.quadraticCurveTo(10,10,10+r,10);
+    ctx.closePath(); ctx.stroke();
 
-            // Ubicación con pin rojo
-            ctx.fillStyle = '#dc2626';
-            ctx.font = '14px Arial, sans-serif';
-            ctx.fillText('●', W / 2 - 52, 140);
-            ctx.fillStyle = '#64748b';
-            ctx.fillText(`  ${e?.ubicacion || ''}`, W / 2 + 4, 140);
+    // Caja logo azul
+    ctx.fillStyle = '#1e40af';
+    ctx.beginPath();
+    ctx.moveTo(W/2-95+8,24); ctx.lineTo(W/2+95-8,24); ctx.quadraticCurveTo(W/2+95,24,W/2+95,32);
+    ctx.lineTo(W/2+95,78-8); ctx.quadraticCurveTo(W/2+95,78,W/2+95-8,78);
+    ctx.lineTo(W/2-95+8,78); ctx.quadraticCurveTo(W/2-95,78,W/2-95,78-8);
+    ctx.lineTo(W/2-95,32); ctx.quadraticCurveTo(W/2-95,24,W/2-95+8,24);
+    ctx.closePath(); ctx.fill();
 
-            // QR centrado
-            const qrSize = 260;
-            const qrX = (W - qrSize) / 2;
-            ctx.drawImage(qrCanvas, qrX, 158, qrSize, qrSize);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 24px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('AIRCOLD', W/2, 58);
+    ctx.font = '11px Arial, sans-serif';
+    ctx.fillStyle = '#93c5fd';
+    ctx.fillText('CÚCUTA', W/2, 73);
 
-            // URL pequeña bajo el QR
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = '10px Arial, sans-serif';
-            ctx.textAlign = 'center';
-            const mid = Math.floor(url.length / 2);
-            ctx.fillText(url.slice(0, mid), W / 2, 434);
-            ctx.fillText(url.slice(mid), W / 2, 448);
+    // Nombre equipo
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 17px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${e?.marca || ''} ${e?.modelo || ''}`, W/2, 108);
 
-            // Línea divisora
-            ctx.strokeStyle = '#e2e8f0';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(30, 464); ctx.lineTo(W - 30, 464);
-            ctx.stroke();
+    // Ubicación
+    ctx.fillStyle = '#64748b';
+    ctx.font = '13px Arial, sans-serif';
+    ctx.fillText(`📍 ${e?.ubicacion || ''}`, W/2, 128);
 
-            // Teléfono grande
-            ctx.fillStyle = '#0f172a';
-            ctx.font = 'bold 30px Arial, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('317 402 2372', W / 2, 510);
+    // Dibujar QR desde el <img> ya cargado en el modal
+    try {
+        ctx.drawImage(qrImg, (W-260)/2, 144, 260, 260);
+    } catch(err) {
+        // Si hay CORS en el img del modal, usar un canvas temporal con fetch
+        toast('⚠️ No se pudo copiar el QR por CORS');
+        return;
+    }
 
-            // Footer
-            ctx.fillStyle = '#cbd5e1';
-            ctx.font = '11px Arial, sans-serif';
-            ctx.fillText('Generado por AIRCOLD · Sistema de Gestión HVAC', W / 2, 550);
+    // URL
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '9px Arial, sans-serif';
+    const mid = Math.floor(url.length/2);
+    ctx.fillText(url.slice(0,mid), W/2, 420);
+    ctx.fillText(url.slice(mid), W/2, 432);
 
-            // Descargar
-            document.body.removeChild(qrDiv);
-            const link = document.createElement('a');
-            const nombre = `QR_${e?.marca || ''}_${e?.modelo || ''}_${e?.ubicacion || ''}`.replace(/\s+/g, '_').replace(/[^\w_]/g, '');
-            link.download = `${nombre}.png`;
-            link.href = canvas.toDataURL('image/png');
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            toast('✅ Etiqueta QR descargada');
-        };
+    // Línea
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(30,448); ctx.lineTo(W-30,448); ctx.stroke();
 
-        // Intentar cargar logo
-        const logoImg = new Image();
-        logoImg.onload = () => dibujar(logoImg);
-        logoImg.onerror = () => dibujar(null);
-        logoImg.src = 'AIRCOLD_LOGO.png';
+    // Teléfono
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 30px Arial, sans-serif';
+    ctx.fillText('317 402 2372', W/2, 494);
 
-    }, 300);
+    // Footer
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '10px Arial, sans-serif';
+    ctx.fillText('Generado por AIRCOLD · Sistema de Gestión HVAC', W/2, 560);
+
+    const link = document.createElement('a');
+    const nombre = `QR_${e?.marca||''}_${e?.modelo||''}_${e?.ubicacion||''}`.replace(/\s+/g,'_').replace(/[^\w_]/g,'');
+    link.download = `${nombre}.png`;
+    link.href = canvas.toDataURL('image/png');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast('✅ Etiqueta QR descargada');
 }
 
 // ============================================
@@ -1581,6 +1563,7 @@ window.modalNuevoServicio = modalNuevoServicio;
 window.modalInformeTecnico = modalInformeTecnico;
 window.modalRecordar = modalRecordar;
 window.modalQR = modalQR;
+window.descargarQR = descargarQR;
 window.modalNuevoTecnico = modalNuevoTecnico;
 window.modalEditarTecnico = modalEditarTecnico;
 window.generarInformePDF = generarInformePDF;
