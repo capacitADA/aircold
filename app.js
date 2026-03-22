@@ -1116,29 +1116,105 @@ function modalQR(eid) {
     const e = getEq(eid);
     const c = getCl(e?.clienteId);
     const url = `${window.location.origin}${window.location.pathname}#/equipo/${eid}`;
-    const telefonoEmpresa = "573174022372";
-    const mensajeWhatsApp = `Hola, soy tu cliente ${c?.nombre || 'cliente'} y tengo una necesidad con mi equipo ${e?.marca || ''} ${e?.modelo || ''} (${e?.ubicacion || ''})`;
-    
-    showModal(`<div class="modal" onclick="event.stopPropagation()" style="max-width:340px;">
-        <div class="modal-h">
-            <h3>📱 Código QR</h3>
-            <button class="xbtn" onclick="closeModal()">✕</button>
-        </div>
-        <div class="modal-b" style="text-align:center;">
-            <div style="font-size:0.88rem;font-weight:700;margin-bottom:4px;">${e?.marca} ${e?.modelo}</div>
-            <div style="font-size:0.75rem;color:var(--hint);margin-bottom:0.8rem;">📍 ${e?.ubicacion}</div>
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}"
-                style="border-radius:12px;margin-bottom:0.8rem;width:180px;height:180px;" alt="QR">
-            <div class="modal-foot" style="flex-direction:column;gap:10px;margin-top:0.5rem;">
-                <button class="btn btn-wa" style="width:100%;background:#25D366;color:white;padding:12px;font-size:0.9rem;border:none;border-radius:10px;cursor:pointer;" 
-                    onclick="window.open('https://wa.me/${telefonoEmpresa}?text=${encodeURIComponent(mensajeWhatsApp)}', '_blank')">
-                    💬 Contactar por WhatsApp
-                </button>
-                <button class="btn btn-gray" onclick="window.print();toast('🖨️ Imprimiendo QR...')">🖨️ Imprimir QR</button>
-                <button class="btn btn-gray" onclick="closeModal()">Cerrar</button>
-            </div>
-        </div>
-    </div>`);
+    const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(url)}`;
+
+    toast('⏳ Generando etiqueta QR...');
+
+    const qrImg = new Image();
+    qrImg.crossOrigin = 'anonymous';
+    qrImg.onload = () => {
+        const logoImg = new Image();
+        logoImg.crossOrigin = 'anonymous';
+        const dibujarEtiqueta = () => {
+            const DPR = 3;
+            const W = 320, H = 460;
+            const canvas = document.createElement('canvas');
+            canvas.width = W * DPR;
+            canvas.height = H * DPR;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(DPR, DPR);
+
+            // Fondo blanco
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, W, H);
+
+            // Borde azul
+            ctx.strokeStyle = '#1d4ed8';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.roundRect(8, 8, W - 16, H - 16, 12);
+            ctx.stroke();
+
+            // Logo o texto fallback
+            if (logoImg.complete && logoImg.naturalWidth > 0) {
+                const lw = 170, lh = 50;
+                ctx.drawImage(logoImg, (W - lw) / 2, 24, lw, lh);
+            } else {
+                ctx.fillStyle = '#1d4ed8';
+                ctx.font = 'bold 20px system-ui, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('AIRCOLD', W / 2, 58);
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '10px system-ui, sans-serif';
+                ctx.fillText('CÚCUTA', W / 2, 72);
+            }
+
+            // Nombre equipo
+            ctx.fillStyle = '#0f172a';
+            ctx.font = 'bold 13px system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${e?.marca || ''} ${e?.modelo || ''}`, W / 2, 96);
+
+            // Ubicación
+            ctx.fillStyle = '#64748b';
+            ctx.font = '11px system-ui, sans-serif';
+            ctx.fillText(`📍 ${e?.ubicacion || ''}`, W / 2, 114);
+
+            // QR centrado
+            const qrSize = 200;
+            ctx.drawImage(qrImg, (W - qrSize) / 2, 126, qrSize, qrSize);
+
+            // URL pequeña
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '7.5px system-ui, sans-serif';
+            const urlCorta = url.length > 54 ? url.slice(0, 54) + '…' : url;
+            ctx.fillText(urlCorta, W / 2, 342);
+
+            // Línea divisora
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            ctx.moveTo(28, 356); ctx.lineTo(W - 28, 356);
+            ctx.stroke();
+
+            // Teléfono grande
+            ctx.fillStyle = '#0f172a';
+            ctx.font = 'bold 22px system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('317 402 2372', W / 2, 392);
+
+            // Footer
+            ctx.fillStyle = '#cbd5e1';
+            ctx.font = '9px system-ui, sans-serif';
+            ctx.fillText('Generado por AIRCOLD · Sistema de Gestión HVAC', W / 2, 428);
+
+            // Descargar PNG
+            const link = document.createElement('a');
+            const nombre = `QR_${(e?.marca || '')} ${(e?.modelo || '')} ${(e?.ubicacion || '')}`.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+            link.download = `${nombre}.png`;
+            link.href = canvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast('✅ Etiqueta QR descargada');
+        };
+
+        logoImg.onload = dibujarEtiqueta;
+        logoImg.onerror = dibujarEtiqueta;
+        logoImg.src = 'https://github.com/capacitADA/aircold/blob/main/AIRCOLD_LOGO.png?raw=true';
+    };
+    qrImg.onerror = () => toast('⚠️ Error al generar QR. Verifica tu conexión.');
+    qrImg.src = qrApiUrl;
 }
 
 // ============================================
@@ -1420,6 +1496,13 @@ function manejarRutaQR() {
             <div style="font-size:0.78rem;color:#475569;">Cliente: ${c?.nombre}</div>
             <div style="font-size:0.75rem;color:#94a3b8;">Serie: ${e.serie || 'N/A'}</div>
         </div>
+        <div style="margin-bottom:1rem;">
+            <button style="width:100%;background:#25D366;color:white;border:none;padding:14px;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;"
+                onclick="window.open('https://wa.me/573174022372?text=${encodeURIComponent('Hola, soy tu cliente ' + (c?.nombre || '') + ' y tengo una novedad con mi equipo ' + (e?.marca || '') + ' ' + (e?.modelo || '') + ' (' + (e?.ubicacion || '') + '), ¿podrías revisarlo?')}', '_blank')">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                Contactar técnico
+            </button>
+        </div>
         <div style="font-size:0.88rem;font-weight:700;margin-bottom:0.75rem;">Historial de servicios (${ss.length})</div>
         ${ss.map(s => `
         <div style="border:0.5px solid #bfdbfe;border-radius:10px;padding:0.85rem;margin-bottom:0.65rem;background:white;">
@@ -1434,12 +1517,6 @@ function manejarRutaQR() {
                 ${(s.fotos || []).map(f => `<img src="${f}" style="width:60px;height:60px;border-radius:6px;object-fit:cover;" loading="lazy">`).join('')}
             </div>
         </div>`).join('')}
-        <div style="margin-top:1.5rem;">
-            <button style="width:100%;background:#25D366;color:white;border:none;padding:12px;border-radius:12px;font-size:1rem;font-weight:600;cursor:pointer;"
-                onclick="window.open('https://wa.me/573174022372?text=${encodeURIComponent('Hola, soy tu cliente ' + (c?.nombre || '') + ' y necesito soporte para mi equipo ' + (e?.marca || '') + ' ' + (e?.modelo || '') + ' (' + (e?.ubicacion || '') + ')')}', '_blank')">
-                💬 Contactar con AIRCOLD por WhatsApp
-            </button>
-        </div>
         <div style="text-align:center;font-size:0.7rem;color:#94a3b8;margin-top:1rem;padding-top:0.75rem;border-top:0.5px solid #e2e8f0;">
             Generado por AIRCOLD · Sistema de Gestión HVAC
         </div>
