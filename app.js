@@ -1133,12 +1133,8 @@ function imprimirQR() {
     const qr = document.getElementById('qrImprimible');
     if (!qr) return;
     const win = window.open('', '_blank');
-    win.document.write(\`<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <style>
-        body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:white;}
-        @media print{body{min-height:auto;}}
-        @page{size:A5;margin:1cm;}
-    </style></head><body>\${qr.outerHTML}</body></html>\`);
+    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:white;}@media print{body{min-height:auto;}}@page{size:A5;margin:1cm;}</style></head><body>' + qr.outerHTML + '</body></html>';
+    win.document.write(html);
     win.document.close();
     setTimeout(() => win.print(), 400);
 }
