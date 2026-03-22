@@ -93,13 +93,12 @@ function closeModal() {
     fotosNuevas[0] = fotosNuevas[1] = fotosNuevas[2] = null;
 }
 
-// ===== CARGAR DATOS FIREBASE (OPTIMIZADO) =====
+// ===== CARGAR DATOS FIREBASE (SIN DATOS DE EJEMPLO) =====
 async function cargarDatos() {
     const main = document.getElementById('mainContent');
     main.innerHTML = '<div class="loading-screen"><div class="loading-spinner"></div><p>Cargando datos...</p></div>';
     
     try {
-        // Cargar cada colección por separado para mejor control
         const clientesSnap = await getDocs(query(collection(db, 'clientes'), orderBy('nombre')));
         clientes = clientesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         
@@ -112,11 +111,6 @@ async function cargarDatos() {
         const tecnicosSnap = await getDocs(collection(db, 'tecnicos'));
         tecnicos = tecnicosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         
-        if (clientes.length === 0 && equipos.length === 0 && servicios.length === 0 && tecnicos.length === 0) {
-            await crearDatosEjemplo();
-            return;
-        }
-        
         toast('✅ Listo', 1000);
         
     } catch (e) {
@@ -126,53 +120,6 @@ async function cargarDatos() {
         return;
     }
     renderView();
-}
-
-// ===== DATOS DE EJEMPLO =====
-async function crearDatosEjemplo() {
-    toast('📦 Creando datos de ejemplo...');
-    try {
-        const cliRef = await addDoc(collection(db, 'clientes'), {
-            nombre: 'KATTY VELAZCO',
-            telefono: '3043361259',
-            email: '',
-            ciudad: 'Cúcuta',
-            direccion: 'Condominio Firenze casa C 22',
-            latitud: null,
-            longitud: null
-        });
-
-        await addDoc(collection(db, 'tecnicos'), {
-            nombre: 'ORLANDO ORTIZ',
-            telefono: '3174022372'
-        });
-
-        const eqRef = await addDoc(collection(db, 'equipos'), {
-            clienteId: cliRef.id,
-            marca: 'MABE',
-            modelo: 'MMI12CABWCCCIII8',
-            serie: 'WCCCIII8',
-            ubicacion: 'HAB PPAL',
-            tipo: 'Split',
-            capacidad: '12.000 BTU'
-        });
-
-        const hoy = new Date().toISOString().split('T')[0];
-        await addDoc(collection(db, 'servicios'), {
-            equipoId: eqRef.id,
-            tipo: 'Mantenimiento',
-            fecha: hoy,
-            tecnico: 'ORLANDO ORTIZ',
-            descripcion: 'Mantenimiento preventivo. Limpieza de serpentines, filtros y rejillas. Revisión de drenajes. Sistema funcionando correctamente.',
-            proximoMantenimiento: calcProxFecha(hoy),
-            fotos: []
-        });
-
-        await cargarDatos();
-    } catch (e) {
-        console.error('Error creando ejemplos:', e);
-        renderView();
-    }
 }
 
 // ===== SUBIR IMAGEN (Base64, sin Storage) =====
@@ -574,15 +521,15 @@ function renderMantenimientos() {
     return `<div class="page">
         <div class="sec-head"><h2>Agenda ${año}</h2></div>
         <div class="tbl-wrap">
-            <table>
+             <table>
                 <thead>
-                    <tr>
+                     <tr>
                         <th>Mes</th>
                         <th>Fecha</th>
                         <th>Cliente</th>
                         <th>Equipo</th>
                         <th></th>
-                    </tr>
+                     </tr>
                 </thead>
                 <tbody>
                     ${MESES.map((mes, idx) => {
@@ -592,7 +539,7 @@ function renderMantenimientos() {
                             return `<tr>
                                 <td style="color:var(--hint);font-size:0.72rem;background:var(--bg2);">${mes}</td>
                                 <td colspan="4" style="color:#cbd5e1;font-size:0.7rem;">—</td>
-                            </tr>`;
+                             </tr>`;
                         }
                         return lista.map((m, i) => {
                             const e = getEq(m.equipoId);
@@ -608,11 +555,11 @@ function renderMantenimientos() {
                                         📱
                                     </button>
                                 </td>
-                            </tr>`;
+                             </tr>`;
                         }).join('');
                     }).join('')}
                 </tbody>
-            </table>
+             </table>
         </div>
     </div>`;
 }
@@ -1014,17 +961,17 @@ function exportarPDFInforme(eid) {
 <body>
   <div class="hdr">
     <div class="hdr-logo">
-      <img src="AIRCOLD_LOGO.png" style="height:52px;object-fit:contain;" alt="AIRCOLD" onerror="this.outerHTML='<div style=&quot;font-size:1.1rem;font-weight:700;letter-spacing:2px;&quot;>AIRCOLD</div>'">
+      <img src="https://github.com/capacitADA/aircold/blob/main/AIRCOLD_LOGO.png?raw=true" style="height:52px;object-fit:contain;" alt="AIRCOLD">
     </div>
     <div class="contact">Servicios de Refrigeración<br>Cll. 23N # 2-99 Prados Norte<br>3174022372 – 3232458563</div>
   </div>
   <table class="fields">
-     <tr><td><span class="lbl">Entidad</span><br>${c?.nombre || ''}</td>
-     <td><span class="lbl">Ubicación del equipo</span><br>${e?.ubicacion || ''}</td></tr>
-     <tr><td><span class="lbl">Marca de equipo</span><br>${e?.marca || ''}</td>
-     <td><span class="lbl">Modelo y serial</span><br>${e?.modelo || ''} · ${e?.serie || ''}</td></tr>
-     <tr><td><span class="lbl">Fecha</span><br>${fecha}</td>
-     <td><span class="lbl">Valor</span><br>${valor || 'ΦΦΦ'}</td></tr>
+      <tr><td><span class="lbl">Entidad</span><br>${c?.nombre || ''}</td>
+      <td><span class="lbl">Ubicación del equipo</span><br>${e?.ubicacion || ''}</td></tr>
+      <tr><td><span class="lbl">Marca de equipo</span><br>${e?.marca || ''}</td>
+      <td><span class="lbl">Modelo y serial</span><br>${e?.modelo || ''} · ${e?.serie || ''}</td></tr>
+      <tr><td><span class="lbl">Fecha</span><br>${fecha}</td>
+      <td><span class="lbl">Valor</span><br>${valor || 'ΦΦΦ'}</td></tr>
     </table>
   <div class="section-title">Control de Mantenimiento</div>
   <div class="ck-grid">
@@ -1109,7 +1056,7 @@ function imprimirInformePDF(eid, firmaCli = '', firmaTec = '') {
 <body>
   <div class="hdr">
     <div>
-      <img src="AIRCOLD_LOGO.png" style="height:55px;object-fit:contain;" alt="AIRCOLD" onerror="this.style.display='none'">
+      <img src="https://github.com/capacitADA/aircold/blob/main/AIRCOLD_LOGO.png?raw=true" style="height:55px;object-fit:contain;" alt="AIRCOLD">
     </div>
     <div class="contact">Servicios de Refrigeración<br>Cll. 23N # 2-99 Prados Norte<br>3174022372 – 3232458563</div>
   </div>
@@ -1470,7 +1417,7 @@ function manejarRutaQR() {
     main.style.background = 'white';
     main.innerHTML = `<div style="max-width:600px;margin:0 auto;padding:1.5rem;">
         <div style="text-align:center;margin-bottom:1.5rem;">
-            <img src="AIRCOLD_LOGO.png" style="max-height:65px;max-width:200px;object-fit:contain;margin-bottom:6px;" alt="AIRCOLD" onerror="this.outerHTML='<div style=&quot;font-size:1.5rem;font-weight:700;letter-spacing:2px;color:#0f172a;&quot;>AIRCOLD</div>'">
+            <img src="https://github.com/capacitADA/aircold/blob/main/AIRCOLD_LOGO.png?raw=true" style="max-height:65px;max-width:200px;object-fit:contain;margin-bottom:6px;" alt="AIRCOLD">
             <div style="font-size:0.75rem;color:#64748b;">Cúcuta · CL 23N #2-99 · 3174022372</div>
         </div>
         <div style="border:0.5px solid #e2e8f0;border-radius:12px;padding:1rem;margin-bottom:1rem;background:#f8fafc;">
