@@ -1449,7 +1449,7 @@ function manejarRutaQR() {
             </a>
             <div style="font-size:0.62rem;color:#94a3b8;margin-top:0.75rem;">Generado por capacitADA · Sistema de Gestión HVAC</div>
         </div>
-    </div>\`;
+    </div>`;
     return true;
 }
 
