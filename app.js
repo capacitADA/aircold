@@ -992,21 +992,14 @@ function exportarPDFInforme(eid) {
 </body>
 </html>`;
 
-    const blob = new Blob([html], { type: 'application/pdf' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.href = url;
-    link.download = `Informe_${e?.marca}_${e?.modelo}_${fecha}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    toast('📄 PDF descargado');
+    const ventana = window.open('', '_blank');
+    ventana.document.write(html);
+    ventana.document.close();
+    toast('🖨️ Usa Imprimir → Guardar como PDF');
 }
 
 // ============================================
-// INFORME PDF HISTORIAL (DESCARGA DIRECTA)
+// INFORME PDF HISTORIAL
 // ============================================
 async function generarInformePDF(eid) {
     const e = getEq(eid);
@@ -1095,17 +1088,10 @@ async function generarInformePDF(eid) {
 </body>
 </html>`;
 
-    const blob = new Blob([html], { type: 'application/pdf' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.href = url;
-    link.download = `Informe_${e?.marca}_${e?.modelo}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    toast('📄 PDF descargado');
+    const ventana = window.open('', '_blank');
+    ventana.document.write(html);
+    ventana.document.close();
+    toast('🖨️ Usa Imprimir → Guardar como PDF');
     closeModal();
 }
 
