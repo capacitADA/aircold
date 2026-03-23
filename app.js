@@ -1095,7 +1095,7 @@ async function generarInformePDF(eid) {
       <div style="font-size:10px;color:#64748b;">CLIENTE</div>
     </div>
   </div>
-  <div class="footer">Documento generado por AIRCOLD · Sistema de Gestión HVAC · ${new Date().toLocaleDateString('es-ES')}</div>
+  <div class="footer">Documento generado por capacitADA · Sistema de Gestión HVAC · ${new Date().toLocaleDateString('es-ES')}</div>
 </body>
 </html>`;
 
@@ -1177,7 +1177,7 @@ function modalQR(eid) {
 
         // Footer
         ctx.fillStyle='#cbd5e1'; ctx.font='9px Arial,sans-serif';
-        ctx.fillText('Generado por AIRCOLD · Sistema de Gestión HVAC', W/2, 508);
+        ctx.fillText('Generado por capacitADA · Sistema de Gestión HVAC', W/2, 508);
 
         document.body.removeChild(qrDiv);
         const dataUrl = c.toDataURL('image/png');
@@ -1720,7 +1720,7 @@ function manejarRutaQR() {
             </div>
         </div>`).join('')}
         <div style="text-align:center;font-size:0.7rem;color:#94a3b8;margin-top:1rem;padding-top:0.75rem;border-top:0.5px solid #e2e8f0;">
-            Generado por AIRCOLD · Sistema de Gestión HVAC
+            Generado por capacitADA · Sistema de Gestión HVAC
         </div>
     </div>`;
     return true;
