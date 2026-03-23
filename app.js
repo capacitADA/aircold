@@ -344,9 +344,17 @@ function renderDetalleCliente() {
         ${eqs.length === 0 ? '<p style="font-size:0.85rem;color:var(--hint);text-align:center;padding:1rem;">Sin equipos. Agrega uno.</p>' : ''}
         ${eqs.map(e => `
         <div class="ec">
-            <div class="ec-name">${e.marca} ${e.modelo}</div>
-            <div class="ec-meta">📍 ${e.ubicacion} · Serie: ${e.serie || 'S/N'}</div>
-            <div class="ec-meta">${getServiciosEquipo(e.id).length} servicio(s) registrado(s)</div>
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                <div>
+                    <div class="ec-name">${e.marca} ${e.modelo}</div>
+                    <div class="ec-meta">📍 ${e.ubicacion} · Serie: ${e.serie || 'S/N'}</div>
+                    <div class="ec-meta">${getServiciosEquipo(e.id).length} servicio(s) registrado(s)</div>
+                </div>
+                <div style="display:flex;gap:4px;">
+                    <button class="ib" onclick="modalEditarEquipo('${e.id}')">✏️</button>
+                    <button class="ib" onclick="modalEliminarEquipo('${e.id}')">🗑️</button>
+                </div>
+            </div>
             <div class="ec-btns">
                 <button class="ab" onclick="goTo('historial','${c.id}','${e.id}')">📋 Servicios</button>
                 <button class="ab" onclick="modalNuevoServicio('${e.id}')">➕ Nuevo servicio</button>
@@ -1376,6 +1384,78 @@ async function guardarEquipo(cid) {
     } catch (e) { toast('⚠️ Error al guardar equipo'); }
 }
 
+function modalEditarEquipo(eid) {
+    const e = getEq(eid);
+    if (!e) return;
+    showModal(`<div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-h"><h3>Editar equipo</h3><button class="xbtn" onclick="closeModal()">✕</button></div>
+        <div class="modal-b">
+            <div class="fr">
+                <div><label class="fl first">Marca *</label><input class="fi" id="eMarca" value="${e.marca}"></div>
+                <div><label class="fl first">Modelo *</label><input class="fi" id="eModelo" value="${e.modelo}"></div>
+            </div>
+            <label class="fl">N° de serie</label>
+            <input class="fi" id="eSerie" value="${e.serie || ''}">
+            <label class="fl">Ubicación *</label>
+            <input class="fi" id="eUbic" value="${e.ubicacion}">
+            <label class="fl">Tipo de equipo</label>
+            <input class="fi" id="eTipo" value="${e.tipo || ''}">
+            <div class="modal-foot">
+                <button class="btn btn-gray" onclick="closeModal()">Cancelar</button>
+                <button class="btn btn-blue" onclick="actualizarEquipo('${eid}')">Guardar cambios</button>
+            </div>
+        </div>
+    </div>\`);
+}
+
+async function actualizarEquipo(eid) {
+    const m = document.getElementById('eMarca')?.value?.trim();
+    const mo = document.getElementById('eModelo')?.value?.trim();
+    const u = document.getElementById('eUbic')?.value?.trim();
+    if (!m || !mo || !u) { toast('⚠️ Complete los campos obligatorios'); return; }
+    try {
+        await updateDoc(doc(db, 'equipos', eid), {
+            marca: m, modelo: mo,
+            serie: document.getElementById('eSerie')?.value || 'S/N',
+            ubicacion: u,
+            tipo: document.getElementById('eTipo')?.value || ''
+        });
+        await cargarDatos();
+        toast('✅ Equipo actualizado');
+    } catch (e) { toast('⚠️ Error al actualizar equipo'); }
+}
+
+function modalEliminarEquipo(eid) {
+    const e = getEq(eid);
+    if (!e) return;
+    const ss = getServiciosEquipo(eid);
+    showModal(`<div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-h"><h3>Eliminar equipo</h3><button class="xbtn" onclick="closeModal()">✕</button></div>
+        <div class="modal-b">
+            <div class="confirm-box">
+                <p>⚠️ ¿Eliminar <strong>${e.marca} ${e.modelo}</strong>?</p>
+                <p style="margin-top:5px;">Se eliminarán también <strong>${ss.length} servicio(s)</strong> asociados.</p>
+            </div>
+            <div class="modal-foot">
+                <button class="btn btn-gray" onclick="closeModal()">Cancelar</button>
+                <button class="btn btn-red" onclick="eliminarEquipo('${eid}')">🗑️ Sí, eliminar</button>
+            </div>
+        </div>
+    </div>\`);
+}
+
+async function eliminarEquipo(eid) {
+    const e = getEq(eid);
+    try {
+        const ss = getServiciosEquipo(eid);
+        for (const s of ss) await deleteDoc(doc(db, 'servicios', s.id));
+        await deleteDoc(doc(db, 'equipos', eid));
+        await cargarDatos();
+        goTo('detalle', e?.clienteId);
+        toast('🗑️ Equipo eliminado');
+    } catch (err) { toast('⚠️ Error al eliminar equipo'); }
+}
+
 // ============================================
 // CRUD TÉCNICOS
 // ============================================
@@ -1515,6 +1595,10 @@ window.modalEditarTecnico = modalEditarTecnico;
 window.generarInformePDF = generarInformePDF;
 window.guardarCliente = guardarCliente;
 window.guardarEquipo = guardarEquipo;
+window.actualizarEquipo = actualizarEquipo;
+window.modalEditarEquipo = modalEditarEquipo;
+window.modalEliminarEquipo = modalEliminarEquipo;
+window.eliminarEquipo = eliminarEquipo;
 window.guardarServicio = guardarServicio;
 window.guardarTecnico = guardarTecnico;
 window.actualizarCliente = actualizarCliente;
