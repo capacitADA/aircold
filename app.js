@@ -344,9 +344,17 @@ function renderDetalleCliente() {
         ${eqs.length === 0 ? '<p style="font-size:0.85rem;color:var(--hint);text-align:center;padding:1rem;">Sin equipos. Agrega uno.</p>' : ''}
         ${eqs.map(e => `
         <div class="ec">
-            <div class="ec-name">${e.marca} ${e.modelo}</div>
-            <div class="ec-meta">📍 ${e.ubicacion} · Serie: ${e.serie || 'S/N'}</div>
-            <div class="ec-meta">${getServiciosEquipo(e.id).length} servicio(s) registrado(s)</div>
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                <div>
+                    <div class="ec-name">${e.marca} ${e.modelo}</div>
+                    <div class="ec-meta">📍 ${e.ubicacion} · Serie: ${e.serie || 'S/N'}</div>
+                    <div class="ec-meta">${getServiciosEquipo(e.id).length} servicio(s) registrado(s)</div>
+                </div>
+                <div style="display:flex;gap:4px;">
+                    <button class="ib" onclick="modalEditarEquipo('${e.id}')">✏️</button>
+                    <button class="ib" onclick="modalEliminarEquipo('${e.id}')">🗑️</button>
+                </div>
+            </div>
             <div class="ec-btns">
                 <button class="ab" onclick="goTo('historial','${c.id}','${e.id}')">📋 Servicios</button>
                 <button class="ab" onclick="modalNuevoServicio('${e.id}')">➕ Nuevo servicio</button>
@@ -381,7 +389,10 @@ function renderHistorial() {
         <div class="si">
             <div class="si-top">
                 <span class="badge ${s.tipo === 'Mantenimiento' ? 'b-blue' : s.tipo === 'Reparación' ? 'b-red' : 'b-green'}">${s.tipo}</span>
-                <span style="font-size:0.75rem;color:var(--hint);">${fmtFecha(s.fecha)}</span>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:0.75rem;color:var(--hint);">${fmtFecha(s.fecha)}</span>
+                    <button class="ib" style="padding:3px 7px;min-height:28px;font-size:0.78rem;" onclick="modalEditarServicio('${s.id}')">✏️</button>
+                </div>
             </div>
             <div class="si-info">🔧 ${s.tecnico}</div>
             <div class="si-info" style="color:#64748b;">${s.descripcion}</div>
@@ -1377,6 +1388,136 @@ async function guardarEquipo(cid) {
 }
 
 // ============================================
+// CRUD EQUIPOS — EDITAR / ELIMINAR
+// ============================================
+function modalEditarEquipo(eid) {
+    const eq = getEq(eid);
+    if (!eq) return;
+    showModal(`<div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-h"><h3>Editar equipo</h3><button class="xbtn" onclick="closeModal()">✕</button></div>
+        <div class="modal-b">
+            <div class="fr">
+                <div><label class="fl first">Marca *</label><input class="fi" id="eMarca" value="${eq.marca}"></div>
+                <div><label class="fl first">Modelo *</label><input class="fi" id="eModelo" value="${eq.modelo}"></div>
+            </div>
+            <label class="fl">N° de serie</label>
+            <input class="fi" id="eSerie" value="${eq.serie || ''}">
+            <label class="fl">Ubicación *</label>
+            <input class="fi" id="eUbic" value="${eq.ubicacion}">
+            <label class="fl">Tipo de equipo</label>
+            <input class="fi" id="eTipoEq" value="${eq.tipo || ''}">
+            <div class="modal-foot">
+                <button class="btn btn-gray" onclick="closeModal()">Cancelar</button>
+                <button class="btn btn-blue" onclick="actualizarEquipo('${eid}')">Guardar cambios</button>
+            </div>
+        </div>
+    </div>`);
+}
+
+async function actualizarEquipo(eid) {
+    const m = document.getElementById('eMarca')?.value?.trim();
+    const mo = document.getElementById('eModelo')?.value?.trim();
+    const u = document.getElementById('eUbic')?.value?.trim();
+    if (!m || !mo || !u) { toast('⚠️ Complete los campos obligatorios'); return; }
+    try {
+        await updateDoc(doc(db, 'equipos', eid), {
+            marca: m, modelo: mo,
+            serie: document.getElementById('eSerie')?.value || 'S/N',
+            ubicacion: u,
+            tipo: document.getElementById('eTipoEq')?.value || ''
+        });
+        await cargarDatos();
+        toast('✅ Equipo actualizado');
+    } catch (e) { toast('⚠️ Error al actualizar equipo'); }
+}
+
+function modalEliminarEquipo(eid) {
+    const eq = getEq(eid);
+    if (!eq) return;
+    const ss = getServiciosEquipo(eid);
+    showModal(`<div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-h"><h3>Eliminar equipo</h3><button class="xbtn" onclick="closeModal()">✕</button></div>
+        <div class="modal-b">
+            <div class="confirm-box">
+                <p>⚠️ ¿Eliminar <strong>${eq.marca} ${eq.modelo}</strong>?</p>
+                <p style="margin-top:5px;">Se eliminarán también <strong>${ss.length} servicio(s)</strong> asociados.</p>
+            </div>
+            <div class="modal-foot">
+                <button class="btn btn-gray" onclick="closeModal()">Cancelar</button>
+                <button class="btn btn-red" onclick="eliminarEquipo('${eid}')">🗑️ Sí, eliminar</button>
+            </div>
+        </div>
+    </div>`);
+}
+
+async function eliminarEquipo(eid) {
+    const eq = getEq(eid);
+    try {
+        const ss = getServiciosEquipo(eid);
+        for (const s of ss) await deleteDoc(doc(db, 'servicios', s.id));
+        await deleteDoc(doc(db, 'equipos', eid));
+        await cargarDatos();
+        goTo('detalle', eq?.clienteId);
+        toast('🗑️ Equipo eliminado');
+    } catch (e) { toast('⚠️ Error al eliminar'); }
+}
+
+// ============================================
+// EDITAR SERVICIO
+// ============================================
+function modalEditarServicio(sid) {
+    const s = servicios.find(x => x.id === sid);
+    if (!s) return;
+    showModal(`<div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-h"><h3>Editar servicio</h3><button class="xbtn" onclick="closeModal()">✕</button></div>
+        <div class="modal-b">
+            <div class="fr">
+                <div>
+                    <label class="fl first">Tipo *</label>
+                    <select class="fi" id="esTipo">
+                        <option ${s.tipo==='Mantenimiento'?'selected':''}>Mantenimiento</option>
+                        <option ${s.tipo==='Reparación'?'selected':''}>Reparación</option>
+                        <option ${s.tipo==='Instalación'?'selected':''}>Instalación</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="fl first">Fecha *</label>
+                    <input class="fi" type="date" id="esFecha" value="${s.fecha}">
+                </div>
+            </div>
+            <label class="fl">Técnico *</label>
+            <select class="fi" id="esTecnico">
+                ${tecnicos.map(t => `<option ${t.nombre===s.tecnico?'selected':''}>${t.nombre}</option>`).join('')}
+            </select>
+            <label class="fl">Diagnóstico / Descripción *</label>
+            <textarea class="fi" id="esDesc" rows="3">${s.descripcion}</textarea>
+            <label class="fl">Próximo mantenimiento</label>
+            <input class="fi" type="date" id="esProx" value="${s.proximoMantenimiento || ''}">
+            <div class="modal-foot">
+                <button class="btn btn-gray" onclick="closeModal()">Cancelar</button>
+                <button class="btn btn-blue" onclick="actualizarServicio('${sid}')">Guardar cambios</button>
+            </div>
+        </div>
+    </div>`);
+}
+
+async function actualizarServicio(sid) {
+    const desc = document.getElementById('esDesc')?.value?.trim();
+    if (!desc) { toast('⚠️ Ingresa el diagnóstico'); return; }
+    try {
+        await updateDoc(doc(db, 'servicios', sid), {
+            tipo: document.getElementById('esTipo').value,
+            fecha: document.getElementById('esFecha').value,
+            tecnico: document.getElementById('esTecnico').value,
+            descripcion: desc,
+            proximoMantenimiento: document.getElementById('esProx').value || null
+        });
+        await cargarDatos();
+        toast('✅ Servicio actualizado');
+    } catch (e) { toast('⚠️ Error al actualizar'); }
+}
+
+// ============================================
 // CRUD TÉCNICOS
 // ============================================
 function modalNuevoTecnico() {
@@ -1515,6 +1656,12 @@ window.modalEditarTecnico = modalEditarTecnico;
 window.generarInformePDF = generarInformePDF;
 window.guardarCliente = guardarCliente;
 window.guardarEquipo = guardarEquipo;
+window.modalEditarEquipo = modalEditarEquipo;
+window.actualizarEquipo = actualizarEquipo;
+window.modalEliminarEquipo = modalEliminarEquipo;
+window.eliminarEquipo = eliminarEquipo;
+window.modalEditarServicio = modalEditarServicio;
+window.actualizarServicio = actualizarServicio;
 window.guardarServicio = guardarServicio;
 window.guardarTecnico = guardarTecnico;
 window.actualizarCliente = actualizarCliente;
