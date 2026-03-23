@@ -1465,9 +1465,82 @@ async function eliminarEquipo(eid) {
 // ============================================
 // EDITAR SERVICIO
 // ============================================
+// _esidActual guarda el id del servicio en edición y _fotosEditadas las fotos vigentes
+let _esidActual = null;
+let _fotosEditadas = [];
+
+function renderFotosEdicion() {
+    const MAX = 3;
+    const row = document.getElementById('esFotoRow');
+    const lbl = document.getElementById('esFotoLbl');
+    if (!row) return;
+    row.innerHTML = '';
+
+    // Fotos existentes
+    _fotosEditadas.forEach((src, i) => {
+        const div = document.createElement('div');
+        div.style.cssText = 'position:relative;flex-shrink:0;';
+        div.innerHTML = `<img src="${src}" style="width:76px;height:76px;border-radius:10px;object-fit:cover;border:0.5px solid #e2e8f0;display:block;">
+            <button onclick="esFotoQuitar(${i})" style="position:absolute;top:3px;right:3px;background:rgba(220,38,38,0.88);color:white;border:none;border-radius:5px;width:20px;height:20px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>`;
+        row.appendChild(div);
+    });
+
+    // Slots libres
+    const libres = MAX - _fotosEditadas.length;
+    for (let i = 0; i < libres; i++) {
+        const slotIdx = _fotosEditadas.length + i;
+        const div = document.createElement('div');
+        div.id = `fslot${slotIdx}`;
+        div.style.cssText = 'width:76px;height:76px;border-radius:10px;border:1.5px dashed #e2e8f0;background:#f8fafc;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;position:relative;';
+        div.innerHTML = `<div style="font-size:1.5rem;color:#94a3b8;line-height:1;">+</div>
+            <div style="font-size:0.6rem;color:#94a3b8;margin-top:3px;">Foto ${slotIdx+1}</div>
+            <input type="file" id="finput${slotIdx}" accept="image/*" style="display:none" onchange="esFotoAgregar(this,${slotIdx})">`;
+        div.onclick = () => document.getElementById(`finput${slotIdx}`).click();
+        row.appendChild(div);
+    }
+
+    if (lbl) lbl.textContent = `📷 Fotos del servicio (${_fotosEditadas.length} de ${MAX})`;
+}
+
+function esFotoQuitar(i) {
+    _fotosEditadas.splice(i, 1);
+    // resetear nuevas desde ese slot en adelante
+    for (let j = i; j < 3; j++) fotosNuevas[j] = null;
+    renderFotosEdicion();
+}
+
+function esFotoAgregar(input, idx) {
+    if (!input.files || !input.files[0]) return;
+    // idx relativo a slots libres — guardamos en fotosNuevas en posición correcta
+    const nuevaPos = idx - _fotosEditadas.length;
+    if (nuevaPos < 0 || nuevaPos > 2) return;
+    fotosNuevas[nuevaPos] = input.files[0];
+    // preview
+    const reader = new FileReader();
+    reader.onload = e => {
+        const slot = document.getElementById(`fslot${idx}`);
+        if (slot) {
+            slot.style.border = '1.5px solid #2563eb';
+            slot.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:9px;">
+                <button onclick="esFotoNuevaQuitar(${nuevaPos},${idx})" style="position:absolute;top:3px;right:3px;background:rgba(220,38,38,0.88);color:white;border:none;border-radius:5px;width:20px;height:20px;font-size:10px;cursor:pointer;">✕</button>`;
+            slot.onclick = null;
+        }
+    };
+    reader.readAsDataURL(input.files[0]);
+}
+
+function esFotoNuevaQuitar(nuevaPos, slotIdx) {
+    fotosNuevas[nuevaPos] = null;
+    renderFotosEdicion();
+}
+
 function modalEditarServicio(sid) {
     const s = servicios.find(x => x.id === sid);
     if (!s) return;
+    _esidActual = sid;
+    _fotosEditadas = [...(s.fotos || [])];
+    fotosNuevas[0] = fotosNuevas[1] = fotosNuevas[2] = null;
+
     showModal(`<div class="modal" onclick="event.stopPropagation()">
         <div class="modal-h"><h3>Editar servicio</h3><button class="xbtn" onclick="closeModal()">✕</button></div>
         <div class="modal-b">
@@ -1493,28 +1566,47 @@ function modalEditarServicio(sid) {
             <textarea class="fi" id="esDesc" rows="3">${s.descripcion}</textarea>
             <label class="fl">Próximo mantenimiento</label>
             <input class="fi" type="date" id="esProx" value="${s.proximoMantenimiento || ''}">
+            <label class="fl" id="esFotoLbl" style="margin-top:0.7rem;">📷 Fotos del servicio</label>
+            <div id="esFotoRow" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:0.4rem;"></div>
             <div class="modal-foot">
                 <button class="btn btn-gray" onclick="closeModal()">Cancelar</button>
-                <button class="btn btn-blue" onclick="actualizarServicio('${sid}')">Guardar cambios</button>
+                <button class="btn btn-blue" id="btnActServ" onclick="actualizarServicio('${sid}')">Guardar cambios</button>
             </div>
         </div>
     </div>`);
+
+    setTimeout(() => renderFotosEdicion(), 50);
 }
 
 async function actualizarServicio(sid) {
     const desc = document.getElementById('esDesc')?.value?.trim();
     if (!desc) { toast('⚠️ Ingresa el diagnóstico'); return; }
+    const btn = document.getElementById('btnActServ');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando...'; }
     try {
+        let fotosFinales = [..._fotosEditadas];
+        const fotosValidas = fotosNuevas.filter(Boolean);
+        if (fotosValidas.length > 0) {
+            if (btn) btn.textContent = '📤 Subiendo fotos...';
+            const nuevasUrls = await Promise.all(fotosValidas.map(f => subirImagen(f)));
+            fotosFinales = [...fotosFinales, ...nuevasUrls];
+        }
         await updateDoc(doc(db, 'servicios', sid), {
             tipo: document.getElementById('esTipo').value,
             fecha: document.getElementById('esFecha').value,
             tecnico: document.getElementById('esTecnico').value,
             descripcion: desc,
-            proximoMantenimiento: document.getElementById('esProx').value || null
+            proximoMantenimiento: document.getElementById('esProx').value || null,
+            fotos: fotosFinales
         });
+        _fotosEditadas = [];
+        fotosNuevas[0] = fotosNuevas[1] = fotosNuevas[2] = null;
         await cargarDatos();
         toast('✅ Servicio actualizado');
-    } catch (e) { toast('⚠️ Error al actualizar'); }
+    } catch (e) {
+        toast('⚠️ Error al actualizar');
+        if (btn) { btn.disabled = false; btn.textContent = 'Guardar cambios'; }
+    }
 }
 
 // ============================================
@@ -1661,6 +1753,9 @@ window.actualizarEquipo = actualizarEquipo;
 window.modalEliminarEquipo = modalEliminarEquipo;
 window.eliminarEquipo = eliminarEquipo;
 window.modalEditarServicio = modalEditarServicio;
+window.esFotoQuitar = esFotoQuitar;
+window.esFotoNuevaQuitar = esFotoNuevaQuitar;
+window.esFotoAgregar = esFotoAgregar;
 window.actualizarServicio = actualizarServicio;
 window.guardarServicio = guardarServicio;
 window.guardarTecnico = guardarTecnico;
